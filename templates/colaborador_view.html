@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+
+{% block title %}{{ colaborador.nome_completo }} - Perfil{% endblock %}
+
+{% block breadcrumb %}
+    <li class="breadcrumb-item"><a href="{{ url_for('listar_colaboradores') }}">Colaboradores</a></li>
+    <li class="breadcrumb-item active">{{ colaborador.nome_completo.split(' ')[0] }}</li>
+{% endblock %}
+
+{% block page_title %}{{ colaborador.nome_completo }}{% endblock %}
+{% block page_subtitle %}
+    {% if colaborador.nome_social %} (Nome Social: {{ colaborador.nome_social }}) {% endif %}
+{% endblock %}
+
+{% block page_actions %}
+    <a href="{{ url_for('editar_colaborador', id=colaborador.id) }}" class="btn btn-warning shadow-sm">
+        <i class="bi bi-pencil-square"></i> Editar Perfil
+    </a>
+    <a href="{{ url_for('listar_colaboradores') }}" class="btn btn-outline-secondary shadow-sm">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white border-bottom py-3">
+                <h5 class="card-title mb-0 text-primary fw-bold">
+                    <i class="bi bi-person-lines-fill me-2"></i>Informações Gerais
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    <div class="col-sm-6">
+                        <label class="small text-uppercase fw-bold text-muted d-block">CPF</label>
+                        <p class="fs-6">{{ formatar_cpf(colaborador.cpf) if formatar_cpf else colaborador.cpf }}</p>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="small text-uppercase fw-bold text-muted d-block">Matrícula</label>
+                        <p class="fs-6">{{ colaborador.matricula or '---' }}</p>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="small text-uppercase fw-bold text-muted d-block">Nascimento</label>
+                        <p class="fs-6">
+                            {{ colaborador.data_nascimento.strftime('%d/%m/%Y') if colaborador.data_nascimento else '---' }}
+                            {% if colaborador.data_nascimento %}
+                                <span class="badge bg-light text-dark fw-normal border ms-1">
+                                    {{ calcular_idade(colaborador.data_nascimento) }} anos
+                                </span>
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="small text-uppercase fw-bold text-muted d-block">Data de Ingresso</label>
+                        <p class="fs-6">{{ colaborador.data_ingresso.strftime('%d/%m/%Y') if colaborador.data_ingresso else '---' }}</p>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="small text-uppercase fw-bold text-muted d-block">Email Principal</label>
+                        <p class="fs-6">{{ colaborador.email_institucional or '---' }}</p>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="small text-uppercase fw-bold text-muted d-block">Celular</label>
+                        <p class="fs-6">
+                            {{ formatar_telefone(colaborador.celular) if formatar_telefone else colaborador.celular }}
+                            {% if colaborador.whatsapp %}
+                                <span class="badge bg-success-subtle text-success border border-success border-opacity-25 ms-1">
+                                    <i class="bi bi-whatsapp"></i> WhatsApp
+                                </span>
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white border-bottom py-3">
+                <h5 class="card-title mb-0 text-primary fw-bold">
+                    <i class="bi bi-briefcase me-2"></i>Vínculo Institucional
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    <div class="col-sm-6">
+                        <label class="small text-uppercase fw-bold text-muted d-block">Tipo de Vínculo</label>
+                        <p class="fs-6">{{ colaborador.tipo_vinculo or '---' }}</p>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="small text-uppercase fw-bold text-muted d-block">Linha de Pesquisa/Departamento</label>
+                        <p class="fs-6">{{ colaborador.departamento or '---' }}</p>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="small text-uppercase fw-bold text-muted d-block">Lotação</label>
+                        <p class="fs-6">{{ colaborador.lotacao or '---' }}</p>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="small text-uppercase fw-bold text-muted d-block">Status</label>
+                        {% if colaborador.status == 'Ativo' %}
+                            <span class="badge bg-success-subtle text-success border border-success border-opacity-25 px-3 py-1 rounded-pill">Ativo</span>
+                        {% else %}
+                            <span class="badge bg-secondary-subtle text-secondary border border-secondary border-opacity-25 px-3 py-1 rounded-pill">{{ colaborador.status }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if colaborador.atende_imprensa %}
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white border-bottom py-3">
+                <h5 class="card-title mb-0 text-primary fw-bold">
+                    <i class="bi bi-mic me-2"></i>Informações para Imprensa
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    {% if colaborador.tipos_imprensa %}
+                    <div class="col-12">
+                        <label class="small text-uppercase fw-bold text-muted d-block">Tipos de Veículos Atendidos</label>
+                        <div class="d-flex flex-wrap gap-2 mt-2">
+                            {% for tipo in colaborador.tipos_imprensa.split(',') if tipo %}
+                            <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-3 py-1 rounded-pill">{{ tipo }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if colaborador.assuntos_especializacao %}
+                    <div class="col-12">
+                        <label class="small text-uppercase fw-bold text-muted d-block">Temas de Especialidade</label>
+                        <p class="fs-6">{{ colaborador.assuntos_especializacao }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if colaborador.disponibilidade_contato %}
+                    <div class="col-12">
+                        <label class="small text-uppercase fw-bold text-muted d-block">Disponibilidade para Contato</label>
+                        <p class="fs-6">{{ colaborador.disponibilidade_contato }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if colaborador.observacoes_imprensa %}
+                    <div class="col-12">
+                        <label class="small text-uppercase fw-bold text-muted d-block">Observações para Imprensa</label>
+                        <p class="fs-6">{{ colaborador.observacoes_imprensa }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0 text-primary fw-bold">
+                    <i class="bi bi-chat-left-text me-2"></i>Histórico de Observações
+                </h5>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('adicionar_observacao', id=colaborador.id) }}" method="POST" class="mb-4">
+                    <div class="input-group">
+                        <textarea name="observacao_texto" class="form-control" placeholder="Digite uma nova observação..." required style="height: 80px;"></textarea>
+                        <button class="btn btn-primary px-4" type="submit">
+                            <i class="bi bi-plus-lg d-block mb-1"></i> Salvar #{{ colaborador.historico_observacoes|length + 1 }}
+                        </button>
+                    </div>
+                </form>
+
+                <div class="timeline-observations">
+                    {% for obs in colaborador.historico_observacoes|sort(attribute='data_hora', reverse=True) %}
+                    <div class="observation-item">
+                        <div class="obs-header">
+                            <span class="obs-number">OBS #{{ loop.revindex }}</span>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="obs-date"><i class="bi bi-clock me-1"></i>{{ obs.data_hora.strftime('%d/%m/%Y %H:%M') }}</span>
+                                <form action="{{ url_for('excluir_observacao', id=obs.id) }}" method="POST" onsubmit="return confirm('Excluir esta nota?')">
+                                    <button class="btn btn-link text-danger p-0 btn-delete-obs" type="submit"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </div>
+                        </div>
+                        <div class="obs-text">{{ obs.texto }}</div>
+                        <div class="obs-footer">
+                            <i class="bi bi-person-circle"></i> Inserido por: <strong>{{ obs.usuario_nome }}</strong>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-chat-dots fs-2 d-block mb-2 opacity-25"></i>
+                        Nenhuma observação registrada.
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm mb-4 text-center">
+            <div class="card-body py-4">
+                <div class="avatar-lg bg-light rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+                    <i class="bi bi-person text-secondary fs-1"></i>
+                </div>
+                <h5 class="fw-bold mb-1">{{ colaborador.nome_completo }}</h5>
+                <p class="text-muted small mb-3">ID do Sistema: #{{ colaborador.id }}</p>
+
+                <div class="d-block mb-4">
+                    {% if colaborador.status == 'Ativo' %}
+                        <span class="badge bg-success-subtle text-success border border-success border-opacity-25 px-4 py-2 fs-6 rounded-pill">
+                            <i class="bi bi-check-circle-fill me-1"></i> Ativo
+                        </span>
+                    {% else %}
+                        <span class="badge bg-secondary-subtle text-secondary border border-secondary border-opacity-25 px-4 py-2 fs-6 rounded-pill">
+                            <i class="bi bi-pause-circle-fill me-1"></i> {{ colaborador.status }}
+                        </span>
+                    {% endif %}
+                </div>
+                
+                {% if colaborador.atende_imprensa %}
+                <div class="mt-3">
+                    <span class="badge bg-warning-subtle text-warning border border-warning border-opacity-25 px-3 py-1 rounded-pill">
+                        <i class="bi bi-mic-fill me-1"></i> Atende à Imprensa
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if historico %}
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h6 class="card-title mb-0 fw-bold small text-uppercase">Últimas Alterações</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush small">
+                    {% for log in historico %}
+                    <div class="list-group-item px-3 py-2">
+                        <div class="d-flex justify-content-between">
+                            <span class="fw-bold text-primary">{{ log.acao }}</span>
+                            <span class="text-muted" style="font-size: 0.7rem;">{{ log.data_hora.strftime('%d/%m/%y') }}</span>
+                        </div>
+                        <div class="text-muted smaller">Por: {{ log.usuario_nome or 'Sistema' }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

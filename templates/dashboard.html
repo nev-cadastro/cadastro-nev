@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - CADASTRO NEV-USP{% endblock %}
+
+{% block breadcrumb %}
+    <li class="breadcrumb-item active" aria-current="page">Dashboard</li>
+{% endblock %}
+
+{% block page_title %}Olá, {{ current_user.nome_completo.split(' ')[0] if current_user.nome_completo else current_user.username }}!{% endblock %}
+{% block page_subtitle %}{% endblock %}
+
+{% block page_actions %}
+    <div class="d-flex gap-2">
+        <span class="badge bg-white text-dark border d-flex align-items-center px-3 shadow-sm" style="font-weight: 500;">
+            <i class="bi bi-calendar3 me-2 text-primary"></i>
+            {{ now().strftime('%d de %B, %Y') }}
+        </span>
+    </div>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    
+    <!-- Seção Superior: Cards de Indicadores e Ação -->
+    <div class="row g-4 mb-4">
+        <!-- Card Colaboradores: Design Minimalista e Elegante -->
+        <div class="col-md-6 col-xl-7">
+            <div class="card border-0 shadow-sm h-100 card-glass overflow-hidden" onclick="location.href='{{ url_for('listar_colaboradores') }}'">
+                <div class="card-body p-4 position-relative">
+                    <div class="d-flex align-items-center">
+                        <div class="icon-box-elegant bg-primary text-white me-4">
+                            <i class="bi bi-people-fill"></i>
+                        </div>
+                        <div>
+                            <h6 class="text-muted small fw-bold text-uppercase mb-1" style="letter-spacing: 1px;">Gestão de Pessoas</h6>
+                            <h2 class="fw-bold mb-0 display-5">{{ total_colabs|default(0) }}</h2>
+                            <p class="mb-0 text-success small fw-medium mt-1">
+                                <i class="bi bi-graph-up-arrow me-1"></i>{{ novos_cadastros|default(0) }} registrados nos últimos 7 dias
+                            </p>
+                        </div>
+                    </div>
+                    <div class="decoration-circle"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card Novo Cadastro: Foco em Ação -->
+        <div class="col-md-6 col-xl-5">
+            <a href="{{ url_for('novo_colaborador') }}" class="card border-0 shadow-sm h-100 bg-primary text-white text-decoration-none card-hover-primary">
+                <div class="card-body d-flex align-items-center p-4">
+                    <div class="icon-box-elegant bg-white text-primary me-3 shadow-sm">
+                        <i class="bi bi-person-plus-fill"></i>
+                    </div>
+                    <div>
+                        <h5 class="fw-bold mb-0">Novo Cadastro</h5>
+                        <small class="opacity-75">Inserir novo membro no sistema</small>
+                    </div>
+                    <i class="bi bi-arrow-right-short ms-auto fs-1 opacity-50"></i>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Logs Recentes: Versão Ultra-Compacta -->
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="fw-bold mb-0 small text-uppercase text-muted"><i class="bi bi-activity me-2 text-warning"></i>Atividade Recente</h6>
+                </div>
+                <div class="card-body pt-0 px-0">
+                    <div class="log-minimalist-list" id="logWrapper">
+                        {% if atividades %}
+                            {% for atividade in atividades[:4] %}
+                            <div class="log-item-compact px-4 py-2 border-bottom-dashed">
+                                <div class="d-flex justify-content-between">
+                                    <span class="text-dark fw-medium small">{{ atividade.acao }}</span>
+                                    <span class="text-muted smaller">{{ atividade.data_hora.strftime('%H:%M') }}</span>
+                                </div>
+                                <div class="smaller text-muted">por {{ atividade.usuario_nome or 'Sistema' }}</div>
+                            </div>
+                            {% endfor %}
+                            
+                            <!-- Bloco Oculto para Expansão -->
+                            <div id="extraLogs" class="collapse">
+                                {% for atividade in atividades[4:15] %}
+                                <div class="log-item-compact px-4 py-2 border-bottom-dashed bg-light-subtle">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="text-dark fw-medium small">{{ atividade.acao }}</span>
+                                        <span class="text-muted smaller">{{ atividade.data_hora.strftime('%d/%m %H:%M') }}</span>
+                                    </div>
+                                    <div class="smaller text-muted">por {{ atividade.usuario_nome or 'Sistema' }}</div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="p-4 text-center text-muted smaller opacity-50">Sem logs recentes.</div>
+                        {% endif %}
+                    </div>
+                    
+                    <button class="btn btn-link w-100 text-decoration-none smaller py-2 text-primary fw-bold" 
+                            type="button" data-bs-toggle="collapse" data-bs-target="#extraLogs" aria-expanded="false" 
+                            id="btnToggleLogs" onclick="updateLogButton()">
+                        Ver histórico completo
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status do Servidor: Suprimido e Direto -->
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm h-100 bg-light border-start border-4 border-dark">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <span class="smaller fw-bold text-muted text-uppercase">Infraestrutura</span>
+                        <span class="badge bg-success pulse-dot">Online</span>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-6">
+                            <div class="status-item-compact">
+                                <span class="d-block text-muted smaller">Sincronização</span>
+                                <span class="fw-bold small text-success">Operacional</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="status-item-compact">
+                                <span class="d-block text-muted smaller">Ocupação Base</span>
+                                <span class="fw-bold small">{{ total_colabs|default(0) }} / 1000</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Botão que leva para Relatórios -->
+                    <div class="d-grid">
+                        <a href="{{ url_for('relatorios') }}" class="btn btn-dark py-2 btn-sm fw-bold">
+                            <i class="bi bi-file-earmark-bar-graph me-2"></i>Gerar Relatórios e Documentos
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function updateLogButton() {
+        const btn = document.getElementById('btnToggleLogs');
+        setTimeout(() => {
+            const isExpanded = btn.getAttribute('aria-expanded') === 'true';
+            btn.innerText = isExpanded ? 'Recolher histórico' : 'Ver histórico completo';
+        }, 350);
+    }
+</script>
+
+<style>
+    /* Cards Elegantes */
+    .card-glass {
+        background: linear-gradient(135deg, #ffffff 0%, #f9fbff 100%);
+        border: 1px solid rgba(0,0,0,0.03) !important;
+        cursor: pointer;
+    }
+    .icon-box-elegant {
+        width: 65px;
+        height: 65px;
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        transition: transform 0.3s ease;
+    }
+    .card-glass:hover .icon-box-elegant {
+        transform: scale(1.1);
+    }
+    .card-hover-primary:hover {
+        filter: brightness(1.1);
+        transform: translateY(-3px);
+        box-shadow: 0 10px 20px rgba(0, 51, 102, 0.15) !important;
+    }
+    .decoration-circle {
+        position: absolute;
+        width: 150px;
+        height: 150px;
+        background: rgba(0, 51, 102, 0.02);
+        border-radius: 50%;
+        top: -50px;
+        right: -50px;
+    }
+
+    /* Logs Compactos */
+    .log-minimalist-list {
+        max-height: none;
+    }
+    .log-item-compact {
+        transition: background 0.2s ease;
+    }
+    .log-item-compact:hover {
+        background-color: #f8f9fa;
+    }
+    .border-bottom-dashed {
+        border-bottom: 1px dashed #e9ecef;
+    }
+    .smaller { font-size: 0.75rem; }
+    .smaller-text-muted { font-size: 0.7rem; color: #adb5bd; }
+
+    /* Status e Servidor */
+    .status-item-compact {
+        background: white;
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(0,0,0,0.05);
+    }
+    .pulse-dot {
+        position: relative;
+        padding-left: 1.5rem !important;
+    }
+    .pulse-dot::before {
+        content: "";
+        position: absolute;
+        left: 0.6rem;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 8px;
+        height: 8px;
+        background: #fff;
+        border-radius: 50%;
+        animation: pulse-ring 1.5s infinite;
+    }
+    @keyframes pulse-ring {
+        0% { transform: translateY(-50%) scale(0.8); opacity: 1; }
+        100% { transform: translateY(-50%) scale(2.5); opacity: 0; }
+    }
+</style>
+{% endblock %}

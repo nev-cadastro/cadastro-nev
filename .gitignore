@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# Banco de dados
+*.db
+*.sqlite
+data/
+!data/cep_cache.json  # se tiver este arquivo
+
+# Logs
+*.log
+logs/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Configurações sensíveis
+config.py
+*.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Backup
+*.zip
+backup/

@@ -1,0 +1,403 @@
+{% extends "base.html" %}
+
+{% block title %}Novo Colaborador - Sistema NEV USP{% endblock %}
+
+{% block breadcrumb %}
+    <li class="breadcrumb-item"><a href="{{ url_for('listar_colaboradores') }}">Colaboradores</a></li>
+    <li class="breadcrumb-item active">Novo Cadastro</li>
+{% endblock %}
+
+{% block page_title %}Novo Colaborador{% endblock %}
+{% block page_subtitle %}Preencha os campos abaixo para registrar um novo colaborador no sistema.{% endblock %}
+
+{% block page_actions %}
+    <a href="{{ url_for('listar_colaboradores') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Voltar à Listagem
+    </a>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-xl-11">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-0">
+                <form method="POST" action="{{ url_for('novo_colaborador') }}" id="formColaborador">
+
+                    <div class="bg-light border-bottom px-4 pt-3">
+                        <ul class="nav nav-pills nav-fill mb-0" id="formTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active py-3" id="dados-pessoais-tab" data-bs-toggle="tab" data-bs-target="#dados-pessoais" type="button">
+                                    <span class="d-block small text-uppercase opacity-75">Passo 1</span>
+                                    <i class="bi bi-person me-1"></i> Pessoal
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link py-3" id="contato-tab" data-bs-toggle="tab" data-bs-target="#contato" type="button">
+                                    <span class="d-block small text-uppercase opacity-75">Passo 2</span>
+                                    <i class="bi bi-telephone me-1"></i> Contato
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link py-3" id="nev-tab" data-bs-toggle="tab" data-bs-target="#nev" type="button">
+                                    <span class="d-block small text-uppercase opacity-75">Passo 3</span>
+                                    <i class="bi bi-building me-1"></i> Institucional
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link py-3" id="imprensa-tab" data-bs-toggle="tab" data-bs-target="#imprensa" type="button">
+                                    <span class="d-block small text-uppercase opacity-75">Passo 4</span>
+                                    <i class="bi bi-mic me-1"></i> Imprensa
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link py-3" id="outros-tab" data-bs-toggle="tab" data-bs-target="#outros" type="button">
+                                    <span class="d-block small text-uppercase opacity-75">Passo 5</span>
+                                    <i class="bi bi-plus-circle me-1"></i> Extras
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="tab-content p-4" id="formTabsContent">
+
+                        <div class="tab-pane fade show active" id="dados-pessoais">
+                            <h5 class="mb-4 text-primary"><i class="bi bi-person-circle me-2"></i>Identificação Básica</h5>
+                            <div class="row g-3">
+                                <div class="col-md-8">
+                                    <label for="nome_completo" class="form-label required">Nome Completo</label>
+                                    <input type="text" id="nome_completo" name="nome_completo" class="form-control" value="{{ dados.nome_completo|default('') }}" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="nome_social" class="form-label">Nome Social</label>
+                                    <input type="text" id="nome_social" name="nome_social" class="form-control" value="{{ dados.nome_social|default('') }}" placeholder="Se aplicável">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="cpf" class="form-label required">CPF</label>
+                                    <input type="text" id="cpf" name="cpf" class="form-control" value="{{ dados.cpf|default('') }}" placeholder="000.000.000-00" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="rg" class="form-label">RG</label>
+                                    <input type="text" id="rg" name="rg" class="form-control" value="{{ dados.rg|default('') }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="data_nascimento" class="form-label">Data de Nascimento</label>
+                                    <input type="date" id="data_nascimento" name="data_nascimento" class="form-control" value="{{ dados.data_nascimento|default('') }}">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tab-pane fade" id="contato">
+                            <h5 class="mb-4 text-primary"><i class="bi bi-envelope-at me-2"></i>Canais de Comunicação</h5>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="email_institucional" class="form-label required">Email Principal</label>
+                                    <input type="email" id="email_institucional" name="email_institucional" class="form-control" value="{{ dados.email_institucional|default('') }}" placeholder="usuario@usp.br" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="celular" class="form-label required">Celular</label>
+                                    <input type="tel" id="celular" name="celular" class="form-control" value="{{ dados.celular|default('') }}" required>
+                                </div>
+                                <div class="col-md-6 d-flex align-items-end">
+                                    <div class="form-check mb-2">
+                                        <input type="checkbox" id="whatsapp" name="whatsapp" class="form-check-input" {% if dados.whatsapp %}checked{% endif %}>
+                                        <label for="whatsapp" class="form-check-label">Número é WhatsApp</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <h5 class="mb-4 mt-5 text-primary small text-uppercase">Endereço</h5>
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label for="cep" class="form-label">CEP</label>
+                                    <input type="text" id="cep" name="cep" class="form-control" value="{{ dados.cep|default('') }}" placeholder="00000-000">
+
+                                </div>
+                                <div class="col-md-7">
+                                    <label for="endereco" class="form-label">Logradouro</label>
+                                    <input type="text" id="endereco" name="endereco" class="form-control" value="{{ dados.endereco|default('') }}">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="numero" class="form-label">Nº</label>
+                                    <input type="text" id="numero" name="numero" class="form-control" value="{{ dados.numero|default('') }}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="bairro" class="form-label">Bairro</label>
+                                    <input type="text" id="bairro" name="bairro" class="form-control" value="{{ dados.bairro|default('') }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="cidade" class="form-label">Cidade</label>
+                                    <input type="text" id="cidade" name="cidade" class="form-control" value="{{ dados.cidade|default('') }}">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="estado" class="form-label">Estado</label>
+                                    <input type="text" id="estado" name="estado" class="form-control" value="{{ dados.estado|default('') }}" maxlength="2">
+                                </div>
+                                <div class="col-12">
+                                    <label for="complemento" class="form-label">Complemento</label>
+                                    <input type="text" id="complemento" name="complemento" class="form-control" value="{{ dados.complemento|default('') }}">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tab-pane fade" id="nev">
+                            <h5 class="mb-4 text-primary"><i class="bi bi-briefcase me-2"></i>Vínculo com a Instituição</h5>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label for="data_ingresso" class="form-label required">Data de Ingresso</label>
+                                    <input type="date" id="data_ingresso" name="data_ingresso" class="form-control" value="{{ dados.data_ingresso|default('') }}" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="tipo_vinculo" class="form-label required">Tipo de Vínculo</label>
+                                    <select id="tipo_vinculo" name="tipo_vinculo" class="form-select" required>
+                                        <option value="" {% if not dados.tipo_vinculo %}selected{% endif %} disabled>Escolha o vínculo...</option>
+                                        {% for vinculo in ['Bolsista', 'Voluntário', 'Servidor', 'Pesquisador', 'Estagiário', 'Professor', 'Consultor', 'Técnico'] %}
+                                        <option value="{{ vinculo }}" {% if dados.tipo_vinculo == vinculo %}selected{% endif %}>{{ vinculo }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="departamento" class="form-label">Linha de Pesquisa/Departamento</label>
+                                    <input type="text" id="departamento" name="departamento" class="form-control" value="{{ dados.departamento|default('') }}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="lotacao" class="form-label">Lotação</label>
+                                    <input type="text" id="lotacao" name="lotacao" class="form-control" value="{{ dados.lotacao|default('') }}">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label d-block mb-3 fw-bold">Dias Presenciais no NEV</label>
+                                    <div class="bg-light p-3 rounded d-flex flex-wrap gap-4">
+                                        {% for dia in ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'] %}
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="dias_presenciais" value="{{ dia }}" id="dia_{{ loop.index }}">
+                                            <label class="form-check-label" for="dia_{{ loop.index }}">{{ dia }}</label>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tab-pane fade" id="imprensa">
+                            <h5 class="mb-4 text-primary"><i class="bi bi-mic me-2"></i>Atendimento à Imprensa</h5>
+                            <div class="card bg-light border-0">
+                                <div class="card-body">
+                                    <div class="form-check form-switch mb-4">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="atende_imprensa" name="atende_imprensa" {% if dados.atende_imprensa %}checked{% endif %}>
+                                        <label class="form-check-label fw-bold" for="atende_imprensa">Disponível para atendimento à imprensa</label>
+                                    </div>
+                                    <div id="camposImprensa" class="{% if not dados.atende_imprensa %}d-none{% endif %}">
+                                        <div class="mb-4">
+                                            <label class="form-label d-block mb-3 fw-medium">Tipos de Veículos de Imprensa</label>
+                                            <div class="d-flex flex-wrap gap-3">
+                                                {% for tipo in ['Escrita (Jornais/Revistas)', 'Falada (Rádio/Podcast)', 'Audiovisual (TV/YouTube)', 'Digital (Redes Sociais/Blogs)', 'Imprensa Estrangeira'] %}
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" name="tipos_imprensa" value="{{ tipo }}" id="tipo_{{ loop.index }}">
+                                                    <label class="form-check-label" for="tipo_{{ loop.index }}">{{ tipo }}</label>
+                                                </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                        <div class="mb-4">
+                                            <label for="assuntos_especializacao" class="form-label">Temas de Especialidade</label>
+                                            <textarea id="assuntos_especializacao" name="assuntos_especializacao" class="form-control" rows="3" placeholder="Liste, de forma breve, os temas de estudo nos quais você se sente confortável para falar com a imprensa. Dê preferência ao uso de palavras-chave.">{{ dados.assuntos_especializacao|default('') }}</textarea>
+                                            <div class="form-text">
+                                                <i class="bi bi-info-circle me-1"></i> Exemplos: "violência policial", "direitos humanos", "segurança pública"
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="disponibilidade_contato" class="form-label">Melhores horários para contato</label>
+                                            <textarea id="disponibilidade_contato" name="disponibilidade_contato" class="form-control" rows="2">{{ dados.disponibilidade_contato|default('') }}</textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tab-pane fade" id="outros">
+                            <h5 class="mb-4 text-primary"><i class="bi bi-link-45deg me-2"></i>Links e Observações</h5>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="curriculo_lattes" class="form-label">Link Currículo Lattes</label>
+                                    <input type="url" id="curriculo_lattes" name="curriculo_lattes" class="form-control" value="{{ dados.curriculo_lattes|default('') }}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="orcid" class="form-label">ORCID</label>
+                                    <input type="text" id="orcid" name="orcid" class="form-control" value="{{ dados.orcid|default('') }}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="linkedin" class="form-label">LinkedIn</label>
+                                    <input type="url" id="linkedin" name="linkedin" class="form-control" value="{{ dados.linkedin|default('') }}">
+                                </div>
+                                <div class="col-12">
+                                    <label for="observacoes" class="form-label">Observações Gerais</label>
+                                    <textarea id="observacoes" name="observacoes" class="form-control" rows="4">{{ dados.observacoes|default('') }}</textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-footer bg-white p-4 border-top d-flex justify-content-between">
+                        <a href="{{ url_for('listar_colaboradores') }}" class="btn btn-light px-4">Cancelar</a>
+                        <button type="submit" class="btn btn-primary px-5 shadow-sm">
+                            <i class="bi bi-person-check me-2"></i>Finalizar Cadastro
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Toggle Imprensa
+        const swImprensa = document.getElementById('atende_imprensa');
+        const boxImprensa = document.getElementById('camposImprensa');
+        if (swImprensa) {
+            swImprensa.addEventListener('change', () => {
+                boxImprensa.classList.toggle('d-none', !swImprensa.checked);
+            });
+        }
+
+        // Validação de Navegação entre Abas
+        const form = document.getElementById('formColaborador');
+        form.addEventListener('submit', function(e) {
+            const invalidField = form.querySelector(':invalid');
+            if (invalidField) {
+                const tabPane = invalidField.closest('.tab-pane');
+                const tabId = tabPane.id;
+                const tabTrigger = document.querySelector(`[data-bs-target="#${tabId}"]`);
+                bootstrap.Tab.getOrCreateInstance(tabTrigger).show();
+            }
+        });
+
+        // Data de ingresso padrão = Hoje
+        const dataIngresso = document.getElementById('data_ingresso');
+        if (!dataIngresso.value) {
+            dataIngresso.value = new Date().toISOString().split('T')[0];
+        }
+
+        // ============================================
+        // FUNÇÃO PARA BUSCAR CEP (NOVA)
+        // ============================================
+        const cepInput = document.getElementById('cep');
+        if (cepInput) {
+            // Máscara para CEP
+            cepInput.addEventListener('input', function(e) {
+                let value = this.value.replace(/\D/g, '');
+                if (value.length > 5) {
+                    value = value.substring(0,5) + '-' + value.substring(5,8);
+                }
+                this.value = value;
+            });
+
+            // Buscar CEP ao sair do campo (blur)
+            cepInput.addEventListener('blur', function() {
+                const cep = this.value.replace(/\D/g, '');
+
+                if (cep.length === 8) {
+                    // Mostrar loading
+                    const originalValue = this.value;
+                    this.value = 'Buscando...';
+                    this.disabled = true;
+
+                    // Fazer requisição
+                    fetch(`/api/buscar-cep/${cep}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                const endereco = data.endereco;
+
+                                // Preencher automaticamente os campos
+                                document.getElementById('endereco').value = endereco.logradouro || '';
+                                document.getElementById('bairro').value = endereco.bairro || '';
+                                document.getElementById('cidade').value = endereco.cidade || '';
+                                document.getElementById('estado').value = endereco.estado || '';
+
+                                // Preencher complemento se existir
+                                if (endereco.complemento) {
+                                    document.getElementById('complemento').value = endereco.complemento;
+                                }
+
+                                // Focar no campo número após buscar
+                                document.getElementById('numero').focus();
+
+
+                            } else {
+                                showToast('', 'warning');
+                                document.getElementById('endereco').focus();
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Erro ao buscar CEP:', error);
+                            showToast('Erro ao buscar CEP. Tente novamente.', 'danger');
+                        })
+                        .finally(() => {
+                            // Restaurar valor original
+                            this.value = originalValue;
+                            this.disabled = false;
+                        });
+                } else if (cep.length > 0) {
+                    showToast('CEP inválido. Digite 8 dígitos.', 'warning');
+                }
+            });
+        }
+
+        // Função para mostrar toast (notificação)
+        function showToast(message, type = 'info') {
+            // Verificar se já existe um container de toasts
+            let toastContainer = document.getElementById('toastContainer');
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.id = 'toastContainer';
+                toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+                toastContainer.style.zIndex = '1050';
+                document.body.appendChild(toastContainer);
+            }
+
+            // Criar toast
+            const toastId = 'toast-' + Date.now();
+            const toast = document.createElement('div');
+            toast.id = toastId;
+            toast.className = `toast align-items-center text-bg-${type} border-0`;
+            toast.setAttribute('role', 'alert');
+            toast.setAttribute('aria-live', 'assertive');
+            toast.setAttribute('aria-atomic', 'true');
+
+            toast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            `;
+
+            toastContainer.appendChild(toast);
+
+            // Mostrar toast
+            const bsToast = new bootstrap.Toast(toast, { delay: 3000 });
+            bsToast.show();
+
+            // Remover toast do DOM após desaparecer
+            toast.addEventListener('hidden.bs.toast', function () {
+                toast.remove();
+            });
+        }
+    });
+</script>
+
+<style>
+    .required:after { content: " *"; color: #dc3545; }
+    #formTabs .nav-link { border-radius: 0; border: none; background: transparent; color: #6c757d; transition: 0.3s; }
+    #formTabs .nav-link.active { background: white; color: #0d6efd; font-weight: bold; box-shadow: 0 -3px 0 #0d6efd inset; }
+
+    /* Estilo para campo CEP durante busca */
+    #cep:disabled {
+        background-color: #f8f9fa;
+        cursor: not-allowed;
+    }
+</style>
+{% endblock %}

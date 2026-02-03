@@ -1,0 +1,413 @@
+{% extends "base.html" %}
+
+{% block title %}Editar: {{ colaborador.nome_completo }} - NEV USP{% endblock %}
+
+{% block breadcrumb %}
+    <li class="breadcrumb-item"><a href="{{ url_for('listar_colaboradores') }}">Colaboradores</a></li>
+    <li class="breadcrumb-item"><a href="{{ url_for('ver_colaborador', id=colaborador.id) }}">{{ colaborador.nome_completo }}</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Editar</li>
+{% endblock %}
+
+{% block page_title %}Editar Colaborador{% endblock %}
+{% block page_subtitle %}Atualize os dados cadastrais do colaborador no sistema.{% endblock %}
+
+{% block page_actions %}
+    <a href="{{ url_for('ver_colaborador', id=colaborador.id) }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Voltar para Detalhes
+    </a>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-xl-10">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <form method="POST" action="{{ url_for('editar_colaborador', id=colaborador.id) }}" id="formEditarColaborador" novalidate>
+
+                    <div class="mb-5">
+                        <div class="d-flex align-items-center mb-4 text-primary">
+                            <i class="bi bi-person-badge fs-4 me-2"></i>
+                            <h5 class="mb-0 fw-bold">Identificação e Documentos</h5>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="nome_completo" class="form-label fw-medium required">Nome Completo</label>
+                                <input type="text" id="nome_completo" name="nome_completo" class="form-control"
+                                       value="{{ colaborador.nome_completo }}" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="nome_social" class="form-label fw-medium">Nome Social</label>
+                                <input type="text" id="nome_social" name="nome_social" class="form-control"
+                                       value="{{ colaborador.nome_social or '' }}" placeholder="Se houver">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="cpf" class="form-label fw-medium">CPF</label>
+                                <input type="text" id="cpf" class="form-control bg-light" value="{{ colaborador.cpf }}" readonly data-bs-toggle="tooltip" title="O CPF não pode ser alterado por segurança.">
+                                <small class="text-muted">Somente leitura</small>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="rg" class="form-label fw-medium">RG</label>
+                                <input type="text" id="rg" name="rg" class="form-control" value="{{ colaborador.rg or '' }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="data_nascimento" class="form-label fw-medium">Data de Nascimento</label>
+                                <input type="date" id="data_nascimento" name="data_nascimento" class="form-control"
+                                       value="{{ colaborador.data_nascimento.strftime('%Y-%m-%d') if colaborador.data_nascimento else '' }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-5">
+                        <div class="d-flex align-items-center mb-4 text-primary border-top pt-4">
+                            <i class="bi bi-envelope-at fs-4 me-2"></i>
+                            <h5 class="mb-0 fw-bold">Informações de Contato</h5>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="email_institucional" class="form-label fw-medium required">Email Principal</label>
+                                <input type="email" id="email_institucional" name="email_institucional" class="form-control"
+                                       value="{{ colaborador.email_institucional }}" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="celular" class="form-label fw-medium required">Celular</label>
+                                <input type="tel" id="celular" name="celular" class="form-control"
+                                       value="{{ colaborador.celular or '' }}" required data-mask="phone">
+                            </div>
+                            <div class="col-md-6 d-flex align-items-end">
+                                <div class="form-check mb-2">
+                                    <input type="checkbox" id="whatsapp" name="whatsapp" class="form-check-input"
+                                           {% if colaborador.whatsapp %}checked{% endif %}>
+                                    <label for="whatsapp" class="form-check-label">Número possui WhatsApp</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-5">
+                        <div class="d-flex align-items-center mb-4 text-primary border-top pt-4">
+                            <i class="bi bi-briefcase fs-4 me-2"></i>
+                            <h5 class="mb-0 fw-bold">Vínculo com o NEV</h5>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label for="tipo_vinculo" class="form-label fw-medium required">Tipo de Vínculo</label>
+                                <select id="tipo_vinculo" name="tipo_vinculo" class="form-select" required>
+                                    {% for tipo in ['Bolsista', 'Voluntário', 'Servidor', 'Pesquisador', 'Estagiário', 'Consultor', 'Professor', 'Técnico'] %}
+                                    <option value="{{ tipo }}" {% if colaborador.tipo_vinculo == tipo %}selected{% endif %}>{{ tipo }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="status" class="form-label fw-medium required">Status Atual</label>
+                                <select id="status" name="status" class="form-select" required>
+                                    {% for s in ['Ativo', 'Inativo', 'Afastado', 'Desligado'] %}
+                                    <option value="{{ s }}" {% if colaborador.status == s %}selected{% endif %}>{{ s }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="data_ingresso" class="form-label fw-medium required">Data de Ingresso</label>
+                                <input type="date" id="data_ingresso" name="data_ingresso" class="form-control"
+                                       value="{{ colaborador.data_ingresso.strftime('%Y-%m-%d') if colaborador.data_ingresso else '' }}" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="departamento" class="form-label fw-medium">Linha de Pesquisa/Departamento</label>
+                                <input type="text" id="departamento" name="departamento" class="form-control" value="{{ colaborador.departamento or '' }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="lotacao" class="form-label fw-medium">Lotação</label>
+                                <input type="text" id="lotacao" name="lotacao" class="form-control" value="{{ colaborador.lotacao or '' }}">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-medium d-block mb-3">Dias de Trabalho Presencial</label>
+                                <div class="bg-light p-3 rounded-3 d-flex flex-wrap gap-4">
+                                    {% set dias_selecionados = (colaborador.dias_presenciais or '').split(',') %}
+                                    {% for dia in ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'] %}
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="dias_presenciais" value="{{ dia }}" id="dia_{{ dia }}"
+                                               {% if dia in dias_selecionados %}checked{% endif %}>
+                                        <label class="form-check-label" for="dia_{{ dia }}">{{ dia }}</label>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SEÇÃO DE ENDEREÇO - ADICIONADA AQUI -->
+                    <div class="mb-5">
+                        <div class="d-flex align-items-center mb-4 text-primary border-top pt-4">
+                            <i class="bi bi-geo-alt fs-4 me-2"></i>
+                            <h5 class="mb-0 fw-bold">Endereço</h5>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label for="cep" class="form-label fw-medium">CEP</label>
+                                <input type="text" id="cep" name="cep" class="form-control"
+                                       value="{{ colaborador.cep or '' }}" placeholder="00000-000">
+
+                            </div>
+                            <div class="col-md-7">
+                                <label for="endereco" class="form-label fw-medium">Logradouro</label>
+                                <input type="text" id="endereco" name="endereco" class="form-control" value="{{ colaborador.endereco or '' }}">
+                            </div>
+                            <div class="col-md-2">
+                                <label for="numero" class="form-label fw-medium">Número</label>
+                                <input type="text" id="numero" name="numero" class="form-control" value="{{ colaborador.numero or '' }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="bairro" class="form-label fw-medium">Bairro</label>
+                                <input type="text" id="bairro" name="bairro" class="form-control" value="{{ colaborador.bairro or '' }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="cidade" class="form-label fw-medium">Cidade</label>
+                                <input type="text" id="cidade" name="cidade" class="form-control" value="{{ colaborador.cidade or '' }}">
+                            </div>
+                            <div class="col-md-2">
+                                <label for="estado" class="form-label fw-medium">Estado</label>
+                                <input type="text" id="estado" name="estado" class="form-control" value="{{ colaborador.estado or '' }}" maxlength="2">
+                            </div>
+                            <div class="col-12">
+                                <label for="complemento" class="form-label fw-medium">Complemento</label>
+                                <input type="text" id="complemento" name="complemento" class="form-control" value="{{ colaborador.complemento or '' }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card bg-light border-0 mb-5">
+                        <div class="card-body">
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" role="switch" id="atende_imprensa" name="atende_imprensa"
+                                       {% if colaborador.atende_imprensa %}checked{% endif %}>
+                                <label class="form-check-label fw-bold" for="atende_imprensa">Atende à Imprensa?</label>
+                            </div>
+
+                            <div id="camposImprensa" class="{{ 'd-none' if not colaborador.atende_imprensa }}">
+                                <div class="mb-3">
+                                    <label class="form-label small text-muted text-uppercase fw-bold">Tipos de Veículos de Imprensa</label>
+                                    <div class="d-flex flex-wrap gap-3">
+                                        {% set tipos_selecionados = (colaborador.tipos_imprensa or '').split(',') %}
+                                        {% for tipo in ['Escrita (Jornais/Revistas)', 'Falada (Rádio/Podcast)', 'Audiovisual (TV/YouTube)', 'Digital (Redes Sociais/Blogs)', 'Imprensa Estrangeira'] %}
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="tipos_imprensa" value="{{ tipo }}" id="tipo_{{ loop.index }}"
+                                                   {% if tipo in tipos_selecionados %}checked{% endif %}>
+                                            <label class="form-check-label" for="tipo_{{ loop.index }}">{{ tipo }}</label>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="assuntos_especializacao" class="form-label fw-medium">Temas de Especialidade</label>
+                                    <textarea id="assuntos_especializacao" name="assuntos_especializacao" class="form-control" rows="3" placeholder="Liste, de forma breve, os temas de estudo nos quais você se sente confortável para falar com a imprensa. Dê preferência ao uso de palavras-chave.">{{ colaborador.assuntos_especializacao or '' }}</textarea>
+                                </div>
+                                <div>
+                                    <label for="disponibilidade_contato" class="form-label fw-medium">Melhores horários/Observações para imprensa</label>
+                                    <textarea id="disponibilidade_contato" name="disponibilidade_contato" class="form-control" rows="2">{{ colaborador.disponibilidade_contato or '' }}</textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-5">
+                        <div class="d-flex align-items-center mb-4 text-primary border-top pt-4">
+                            <i class="bi bi-link-45deg fs-4 me-2"></i>
+                            <h5 class="mb-0 fw-bold">Informações Acadêmicas</h5>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="curriculo_lattes" class="form-label fw-medium">Currículo Lattes</label>
+                                <input type="url" id="curriculo_lattes" name="curriculo_lattes" class="form-control" value="{{ colaborador.curriculo_lattes or '' }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="orcid" class="form-label fw-medium">ORCID</label>
+                                <input type="text" id="orcid" name="orcid" class="form-control" value="{{ colaborador.orcid or '' }}">
+                            </div>
+                            <div class="col-12">
+                                <label for="linkedin" class="form-label fw-medium">LinkedIn</label>
+                                <input type="url" id="linkedin" name="linkedin" class="form-control" value="{{ colaborador.linkedin or '' }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-5">
+                        <div class="d-flex align-items-center mb-4 text-primary border-top pt-4">
+                            <i class="bi bi-sticky fs-4 me-2"></i>
+                            <h5 class="mb-0 fw-bold">Observações Gerais</h5>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label for="observacoes" class="form-label fw-medium">Observações</label>
+                                <textarea id="observacoes" name="observacoes" class="form-control" rows="4">{{ colaborador.observacoes or '' }}</textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-4 pt-4 border-top">
+                        <a href="{{ url_for('ver_colaborador', id=colaborador.id) }}" class="btn btn-light px-4">
+                            <i class="bi bi-x-lg me-1"></i> Descartar Alterações
+                        </a>
+                        <button type="submit" class="btn btn-primary px-5 shadow-sm">
+                            <i class="bi bi-save me-1"></i> Salvar Alterações
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Lógica simples para o Switch de Imprensa
+        const switchImprensa = document.getElementById('atende_imprensa');
+        const boxImprensa = document.getElementById('camposImprensa');
+
+        if (switchImprensa && boxImprensa) {
+            switchImprensa.addEventListener('change', () => {
+                boxImprensa.classList.toggle('d-none', !switchImprensa.checked);
+            });
+        }
+
+        // Validação básica adicional antes do envio
+        const form = document.getElementById('formEditarColaborador');
+        form.addEventListener('submit', (e) => {
+            const dataIngresso = document.getElementById('data_ingresso').value;
+            const hoje = new Date().toISOString().split('T')[0];
+
+            if (dataIngresso > hoje) {
+                alert('A data de ingresso não pode ser no futuro.');
+                e.preventDefault();
+            }
+        });
+
+        // ============================================
+        // FUNÇÃO PARA BUSCAR CEP (NOVA)
+        // ============================================
+        const cepInput = document.getElementById('cep');
+        if (cepInput) {
+            // Máscara para CEP
+            cepInput.addEventListener('input', function(e) {
+                let value = this.value.replace(/\D/g, '');
+                if (value.length > 5) {
+                    value = value.substring(0,5) + '-' + value.substring(5,8);
+                }
+                this.value = value;
+            });
+
+            // Buscar CEP ao sair do campo (blur)
+            cepInput.addEventListener('blur', function() {
+                const cep = this.value.replace(/\D/g, '');
+
+                if (cep.length === 8) {
+                    // Mostrar loading
+                    const originalValue = this.value;
+                    this.value = 'Buscando...';
+                    this.disabled = true;
+
+                    // Fazer requisição
+                    fetch(`/api/buscar-cep/${cep}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                const endereco = data.endereco;
+
+                                // Preencher automaticamente os campos
+                                document.getElementById('endereco').value = endereco.logradouro || '';
+                                document.getElementById('bairro').value = endereco.bairro || '';
+                                document.getElementById('cidade').value = endereco.cidade || '';
+                                document.getElementById('estado').value = endereco.estado || '';
+
+                                // Preencher complemento se existir
+                                if (endereco.complemento) {
+                                    document.getElementById('complemento').value = endereco.complemento;
+                                }
+
+                                // Focar no campo número após buscar
+                                document.getElementById('numero').focus();
+
+
+                            } else {
+                                showToast('', 'warning');
+                                document.getElementById('endereco').focus();
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Erro ao buscar CEP:', error);
+                            showToast('Erro ao buscar CEP. Tente novamente.', 'danger');
+                        })
+                        .finally(() => {
+                            // Restaurar valor original
+                            this.value = originalValue;
+                            this.disabled = false;
+                        });
+                } else if (cep.length > 0) {
+                    showToast('CEP inválido. Digite 8 dígitos.', 'warning');
+                }
+            });
+        }
+
+        // Função para mostrar toast (notificação)
+        function showToast(message, type = 'info') {
+            // Verificar se já existe um container de toasts
+            let toastContainer = document.getElementById('toastContainer');
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.id = 'toastContainer';
+                toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+                toastContainer.style.zIndex = '1050';
+                document.body.appendChild(toastContainer);
+            }
+
+            // Criar toast
+            const toastId = 'toast-' + Date.now();
+            const toast = document.createElement('div');
+            toast.id = toastId;
+            toast.className = `toast align-items-center text-bg-${type} border-0`;
+            toast.setAttribute('role', 'alert');
+            toast.setAttribute('aria-live', 'assertive');
+            toast.setAttribute('aria-atomic', 'true');
+
+            toast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            `;
+
+            toastContainer.appendChild(toast);
+
+            // Mostrar toast
+            const bsToast = new bootstrap.Toast(toast, { delay: 3000 });
+            bsToast.show();
+
+            // Remover toast do DOM após desaparecer
+            toast.addEventListener('hidden.bs.toast', function () {
+                toast.remove();
+            });
+        }
+    });
+</script>
+
+<style>
+    .required:after { content: " *"; color: var(--nev-danger); }
+    .form-label { color: var(--nev-secondary); margin-bottom: 0.4rem; font-size: 0.9rem; }
+    .form-control:focus, .form-select:focus { border-color: var(--nev-primary); box-shadow: 0 0 0 0.2rem rgba(30, 64, 175, 0.1); }
+
+    /* Estilo para campo CEP durante busca */
+    #cep:disabled {
+        background-color: #f8f9fa;
+        cursor: not-allowed;
+    }
+</style>
+{% endblock %}

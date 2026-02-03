@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}Gestão de Usuários - NEV USP{% endblock %}
+
+{% block breadcrumb %}
+    <li class="breadcrumb-item active">Usuários</li>
+{% endblock %}
+
+{% block page_title %}{{ title }}{% endblock %}
+{% block page_subtitle %}Controle quem tem acesso ao sistema e gerencie níveis de permissão.{% endblock %}
+
+{% block page_actions %}
+    <a href="{{ url_for('novo_usuario') }}" class="btn btn-primary shadow-sm">
+        <i class="bi bi-person-plus-fill me-1"></i> Novo Usuário
+    </a>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body py-3">
+            <form method="get" class="row g-2 align-items-center">
+                <div class="col-md-5">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control border-start-0" name="busca" 
+                               value="{{ busca or '' }}" placeholder="Buscar por nome, usuário ou e-mail...">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select form-select-sm" name="nivel">
+                        <option value="">Todos os níveis</option>
+                        <option value="admin" {% if nivel == 'admin' %}selected{% endif %}>Administrador</option>
+                        <option value="supervisor" {% if nivel == 'supervisor' %}selected{% endif %}>Supervisor</option>
+                        <option value="colaborador" {% if nivel == 'colaborador' %}selected{% endif %}>Colaborador</option>
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex gap-2">
+                    <button type="submit" class="btn btn-sm btn-primary px-3">
+                        Filtrar
+                    </button>
+                    {% if busca or nivel %}
+                    <a href="{{ url_for('listar_usuarios') }}" class="btn btn-sm btn-outline-secondary px-3">
+                        <i class="bi bi-x-lg"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Usuário</th>
+                        <th>Email</th>
+                        <th>Nível</th>
+                        <th>Status</th>
+                        <th>Último Login</th>
+                        <th class="text-end pe-4">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for usuario in usuarios.items %}
+                    <tr>
+                        <td class="ps-4">
+                            <div class="d-flex align-items-center">
+                                <div class="avatar-sm bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 32px; height: 32px; font-size: 0.8rem; font-weight: bold;">
+                                    {{ usuario.username[:2]|upper }}
+                                </div>
+                                <div>
+                                    <span class="d-block fw-bold text-dark">{{ usuario.nome_completo }}</span>
+                                    <small class="text-muted">@{{ usuario.username }}</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="small">{{ usuario.email }}</td>
+                        <td>
+                            {% if usuario.nivel_acesso == 'admin' %}
+                                <span class="badge bg-danger-subtle text-danger border border-danger border-opacity-10 rounded-pill px-3">Administrador</span>
+                            {% elif usuario.nivel_acesso == 'supervisor' %}
+                                <span class="badge bg-warning-subtle text-warning border border-warning border-opacity-10 rounded-pill px-3">Supervisor</span>
+                            {% else %}
+                                <span class="badge bg-info-subtle text-info border border-info border-opacity-10 rounded-pill px-3">Colaborador</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if usuario.ativo %}
+                                <span class="text-success small fw-bold"><i class="bi bi-circle-fill me-1" style="font-size: 0.5rem;"></i> Ativo</span>
+                            {% else %}
+                                <span class="text-muted small fw-bold"><i class="bi bi-circle-fill me-1" style="font-size: 0.5rem;"></i> Inativo</span>
+                            {% endif %}
+                        </td>
+                        <td class="small text-muted">
+                            {% if usuario.ultimo_login %}
+                                {{ usuario.ultimo_login.strftime('%d/%m/%Y %H:%M') }}
+                            {% else %}
+                                <span class="opacity-50">Nunca</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            <div class="btn-group shadow-sm">
+                                <a href="{{ url_for('editar_usuario', id=usuario.id) }}" class="btn btn-white btn-sm" title="Editar">
+                                    <i class="bi bi-pencil text-primary"></i>
+                                </a>
+                                {% if usuario.id != current_user.id %}
+                                <form method="POST" action="{{ url_for('excluir_usuario', id=usuario.id) }}" 
+                                      class="d-inline" onsubmit="return confirm('Excluir este usuário permanentemente?');">
+                                    <button type="submit" class="btn btn-white btn-sm" title="Excluir">
+                                        <i class="bi bi-trash text-danger"></i>
+                                    </button>
+                                </form>
+                                {% else %}
+                                <button class="btn btn-white btn-sm disabled" title="Você não pode se excluir">
+                                    <i class="bi bi-trash text-muted"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5">
+                            <div class="text-muted">
+                                <i class="bi bi-people fs-1 opacity-25"></i>
+                                <p class="mt-2">Nenhum usuário encontrado com estes critérios.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if usuarios.pages > 1 %}
+        <div class="card-footer bg-white border-top-0 py-3">
+            <nav aria-label="Navegação de páginas">
+                <ul class="pagination pagination-sm justify-content-center mb-0">
+                    <li class="page-item {{ 'disabled' if not usuarios.has_prev }}">
+                        <a class="page-link" href="{{ url_for('listar_usuarios', pagina=usuarios.prev_num, busca=busca, nivel=nivel) }}">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                    </li>
+
+                    {% for page_num in usuarios.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                        {% if page_num %}
+                            <li class="page-item {{ 'active' if page_num == usuarios.page }}">
+                                <a class="page-link" href="{{ url_for('listar_usuarios', pagina=page_num, busca=busca, nivel=nivel) }}">{{ page_num }}</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% endif %}
+                    {% endfor %}
+
+                    <li class="page-item {{ 'disabled' if not usuarios.has_next }}">
+                        <a class="page-link" href="{{ url_for('listar_usuarios', pagina=usuarios.next_num, busca=busca, nivel=nivel) }}">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

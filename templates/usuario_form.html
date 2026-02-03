@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - NEV USP{% endblock %}
+
+{% block breadcrumb %}
+    <li class="breadcrumb-item"><a href="{{ url_for('listar_usuarios') }}">Usuários</a></li>
+    <li class="breadcrumb-item active">Novo Cadastro</li>
+{% endblock %}
+
+{% block page_title %}{{ title }}{% endblock %}
+{% block page_subtitle %}Crie uma nova credencial de acesso para operadores ou administradores do sistema.{% endblock %}
+
+{% block page_actions %}
+    <a href="{{ url_for('listar_usuarios') }}" class="btn btn-outline-secondary btn-sm shadow-sm">
+        <i class="bi bi-arrow-left"></i> Voltar à Lista
+    </a>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3 border-bottom-0">
+                <h5 class="card-title mb-0 fw-bold text-primary">
+                    <i class="bi bi-person-plus-fill me-2"></i>Dados do Novo Usuário
+                </h5>
+            </div>
+            <div class="card-body p-4 pt-0">
+                <form method="POST" id="formNovoUsuario" novalidate>
+                    
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label for="username" class="form-label fw-bold required">Nome de Usuário</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0"><i class="bi bi-at"></i></span>
+                                <input type="text" class="form-control border-start-0 ps-0" id="username" name="username" 
+                                       value="{{ dados.username if dados else '' }}" placeholder="Ex: joao.silva" required>
+                            </div>
+                            <div class="form-text fs-xs">Identificador único usado para realizar o login.</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="nivel_acesso" class="form-label fw-bold required">Nível de Acesso</label>
+                            <select class="form-select" id="nivel_acesso" name="nivel_acesso" required>
+                                <option value="" selected disabled>Selecione...</option>
+                                <option value="colaborador" {% if dados and dados.nivel_acesso == 'colaborador' %}selected{% endif %}>Colaborador (Visualização)</option>
+                                <option value="supervisor" {% if dados and dados.nivel_acesso == 'supervisor' %}selected{% endif %}>Supervisor (Operação)</option>
+                                <option value="admin" {% if dados and dados.nivel_acesso == 'admin' %}selected{% endif %}>Administrador (Total)</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label for="nome_completo" class="form-label fw-bold required">Nome Completo</label>
+                            <input type="text" class="form-control" id="nome_completo" name="nome_completo" 
+                                   value="{{ dados.nome_completo if dados else '' }}" placeholder="Nome e sobrenome" required>
+                        </div>
+
+                        <div class="col-12">
+                            <label for="email" class="form-label fw-bold required">E-mail</label>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   value="{{ dados.email if dados else '' }}" placeholder="usuario@usp.br ou pessoal" required>
+                        </div>
+                    </div>
+
+                    <div class="bg-light p-4 rounded-3 mb-4">
+                        <h6 class="fw-bold mb-3 text-dark"><i class="bi bi-shield-lock me-2"></i>Definição de Senha</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="senha" class="form-label small fw-bold text-muted text-uppercase required">Senha Provisória</label>
+                                <input type="password" class="form-control" id="senha" name="senha" 
+                                       placeholder="Mínimo 8 caracteres" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="confirmar_senha" class="form-label small fw-bold text-muted text-uppercase required">Confirmar Senha</label>
+                                <input type="password" class="form-control" id="confirmar_senha" name="confirmar_senha" required>
+                            </div>
+                            <div class="col-12">
+                                <div class="alert alert-info py-2 small mb-0 mt-2 d-flex align-items-center">
+                                    <i class="bi bi-info-circle-fill me-2 fs-5"></i>
+                                    <div>O usuário será solicitado a alterar esta senha no <strong>primeiro acesso</strong> ao sistema.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                        <a href="{{ url_for('listar_usuarios') }}" class="btn btn-light px-4">Cancelar</a>
+                        <button type="submit" class="btn btn-primary px-5 shadow-sm">
+                            <i class="bi bi-check-circle me-2"></i>Criar Usuário
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4 d-none d-lg-block">
+        <div class="card border-0 bg-primary text-white shadow-sm">
+            <div class="card-body">
+                <h6 class="fw-bold"><i class="bi bi-lightbulb me-2 text-warning"></i>Dica de Segurança</h6>
+                <p class="small mb-0 opacity-75">
+                    Ao criar um novo usuário, defina uma senha complexa. 
+                    O sistema marcará automaticamente a conta para "Troca Obrigatória", garantindo que apenas o dono da conta conheça a senha final.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .required:after { content: " *"; color: var(--nev-danger); }
+    .fs-xs { font-size: 0.75rem; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById('formNovoUsuario').addEventListener('submit', function(e) {
+        const senha = document.getElementById('senha').value;
+        const confirma = document.getElementById('confirmar_senha').value;
+        
+        if (senha.length < 8) {
+            e.preventDefault();
+            alert('A senha deve ter no mínimo 8 caracteres.');
+            return;
+        }
+        
+        if (senha !== confirma) {
+            e.preventDefault();
+            alert('As senhas digitadas não coincidem.');
+            return;
+        }
+    });
+</script>
+{% endblock %}

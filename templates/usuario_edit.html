@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - NEV USP{% endblock %}
+
+{% block breadcrumb %}
+    <li class="breadcrumb-item"><a href="{{ url_for('listar_usuarios') }}">Usuários</a></li>
+    <li class="breadcrumb-item active">{{ usuario.username }}</li>
+{% endblock %}
+
+{% block page_title %}{{ title }}{% endblock %}
+{% block page_subtitle %}Modifique as permissões e dados cadastrais do usuário do sistema.{% endblock %}
+
+{% block page_actions %}
+    <a href="{{ url_for('listar_usuarios') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Voltar à Lista
+    </a>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <form method="POST" id="formEditarUsuario" novalidate>
+                    
+                    <div class="mb-4">
+                        <h5 class="fw-bold mb-3 text-primary"><i class="bi bi-person-badge me-2"></i>Identificação</h5>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="username" class="form-label small fw-bold text-muted text-uppercase">Nome de Usuário</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light border-0"><i class="bi bi-at"></i></span>
+                                    <input type="text" class="form-control bg-light border-0" id="username" value="{{ usuario.username }}" readonly>
+                                </div>
+                                <div class="form-text fs-xs">Identificador único (não editável).</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="nivel_acesso" class="form-label small fw-bold text-muted text-uppercase required">Nível de Acesso</label>
+                                <select class="form-select" id="nivel_acesso" name="nivel_acesso" required>
+                                    <option value="colaborador" {% if usuario.nivel_acesso == 'colaborador' %}selected{% endif %}>Colaborador (Visualização)</option>
+                                    <option value="supervisor" {% if usuario.nivel_acesso == 'supervisor' %}selected{% endif %}>Supervisor (Operação)</option>
+                                    <option value="admin" {% if usuario.nivel_acesso == 'admin' %}selected{% endif %}>Administrador (Total)</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label for="nome_completo" class="form-label fw-bold required">Nome Completo</label>
+                                <input type="text" class="form-control" id="nome_completo" name="nome_completo" value="{{ usuario.nome_completo }}" required>
+                            </div>
+                            <div class="col-12">
+                                <label for="email" class="form-label fw-bold required">E-mail</label>
+                                <input type="email" class="form-control" id="email" name="email" value="{{ usuario.email }}" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-light p-3 rounded-3 mb-4">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="ativo" name="ativo" {% if usuario.ativo %}checked{% endif %}>
+                            <label class="form-check-label fw-bold" for="ativo">Usuário com acesso habilitado</label>
+                        </div>
+                        <small class="text-muted">Desative para impedir o login deste usuário sem excluí-lo da base.</small>
+                    </div>
+
+                    <div class="border-top pt-4 mb-4">
+                        <h5 class="fw-bold mb-1 text-primary"><i class="bi bi-shield-lock me-2"></i>Segurança</h5>
+                        <p class="text-muted small mb-3">Preencha apenas se desejar redefinir a senha do usuário.</p>
+                        
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="nova_senha" class="form-label small fw-bold text-muted text-uppercase">Nova Senha</label>
+                                <input type="password" class="form-control" id="nova_senha" name="nova_senha" placeholder="Mínimo 6 caracteres">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="confirmar_senha" class="form-label small fw-bold text-muted text-uppercase">Confirmar Senha</label>
+                                <input type="password" class="form-control" id="confirmar_senha" name="confirmar_senha">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between border-top pt-4">
+                        <a href="{{ url_for('listar_usuarios') }}" class="btn btn-light px-4">Cancelar</a>
+                        <button type="submit" class="btn btn-primary px-5 shadow-sm">
+                            <i class="bi bi-save me-2"></i>Salvar Alterações
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white py-3">
+                <h6 class="card-title mb-0 fw-bold small text-uppercase"><i class="bi bi-clock-history me-2"></i>Metadados da Conta</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="d-block small text-muted text-uppercase fw-bold">Criado em</label>
+                    <p class="mb-0 small">{{ usuario.data_cadastro.strftime('%d/%m/%Y às %H:%M') }}</p>
+                </div>
+                <div class="mb-3">
+                    <label class="d-block small text-muted text-uppercase fw-bold">Último Acesso</label>
+                    <p class="mb-0 small">
+                        {% if usuario.ultimo_login %}
+                            {{ usuario.ultimo_login.strftime('%d/%m/%Y às %H:%M') }}
+                        {% else %}
+                            <span class="text-muted italic">Nunca acessou o sistema</span>
+                        {% endif %}
+                    </p>
+                </div>
+                <div>
+                    <label class="d-block small text-muted text-uppercase fw-bold">Troca de Senha Obrigatória</label>
+                    <p class="mb-0">
+                        {% if usuario.senha_alterada %}
+                            <span class="badge bg-success-subtle text-success border border-success border-opacity-10 rounded-pill">Senha Atualizada</span>
+                        {% else %}
+                            <span class="badge bg-warning-subtle text-warning border border-warning border-opacity-10 rounded-pill">Pendente (1º Login)</span>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById('formEditarUsuario').addEventListener('submit', function(e) {
+        const novaSenha = document.getElementById('nova_senha').value;
+        const confirmarSenha = document.getElementById('confirmar_senha').value;
+        
+        if (novaSenha || confirmarSenha) {
+            if (novaSenha.length < 6) {
+                e.preventDefault();
+                alert('A nova senha deve ter no mínimo 6 caracteres.');
+                return;
+            }
+            if (novaSenha !== confirmarSenha) {
+                e.preventDefault();
+                alert('As senhas não coincidem. Por favor, verifique.');
+                return;
+            }
+        }
+    });
+</script>
+
+<style>
+    .required:after { content: " *"; color: var(--nev-danger); }
+    .fs-xs { font-size: 0.75rem; }
+</style>
+{% endblock %}

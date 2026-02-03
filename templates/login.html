@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Sistema NEV USP</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+    <style>
+        :root {
+            --nev-primary: #1e40af;
+            --nev-primary-dark: #1d3da8;
+            --nev-accent: #f59e0b;
+            --nev-light: #f8fafc;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--nev-primary) 0%, #3b82f6 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            padding: 1rem;
+        }
+
+        .login-card {
+            max-width: 400px;
+            width: 100%;
+            background: var(--nev-light);
+            border-radius: 1.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .login-header {
+            background: var(--nev-primary);
+            color: white;
+            text-align: center;
+            padding: 2.5rem 1.5rem;
+            position: relative;
+        }
+
+        .logo-badge {
+            width: 70px;
+            height: 70px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            backdrop-filter: blur(4px);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .login-body {
+            padding: 2.5rem;
+        }
+
+        .form-control {
+            height: 50px;
+            border-radius: 0.75rem;
+            padding-left: 2.8rem;
+            border: 2px solid #e2e8f0;
+        }
+
+        .form-control:focus {
+            border-color: var(--nev-primary);
+            box-shadow: 0 0 0 4px rgba(30, 64, 175, 0.1);
+        }
+
+        .input-group-icon {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 5;
+            color: #94a3b8;
+        }
+
+        .btn-login {
+            background: var(--nev-primary);
+            border: none;
+            height: 50px;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            transition: all 0.3s;
+            color: white;
+        }
+
+        .btn-login:hover {
+            background: var(--nev-primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(30, 64, 175, 0.3);
+            color: white;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            border: none;
+            background: none;
+            color: #94a3b8;
+            cursor: pointer;
+            z-index: 5;
+        }
+
+        .system-info {
+            text-align: center;
+            padding: 1.5rem;
+            font-size: 0.8rem;
+            color: #64748b;
+            border-top: 1px solid #f1f5f9;
+        }
+
+        .alert {
+            border-radius: 0.75rem;
+            font-size: 0.9rem;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="login-card">
+        <div class="login-header">
+            <div class="logo-badge">
+                <i class="bi bi-shield-lock fs-2"></i>
+            </div>
+            <h4 class="mb-1 fw-bold">NEV / USP</h4>
+            <p class="small mb-0 opacity-75">Gestão de Colaboradores</p>
+        </div>
+
+        <div class="login-body">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ 'danger' if category == 'error' else category }} d-flex align-items-center mb-4" role="alert">
+                            <i class="bi bi-info-circle-fill me-2"></i>
+                            <div>{{ message }}</div>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('login') }}">
+                <div class="mb-3 position-relative">
+                    <label for="username" class="form-label small fw-bold text-muted text-uppercase">Usuário</label>
+                    <div class="position-relative">
+                        <i class="bi bi-person input-group-icon"></i>
+                        <input type="text" class="form-control" id="username" name="username" 
+                               placeholder="Nome de usuário" required autofocus>
+                    </div>
+                </div>
+
+                <div class="mb-4 position-relative">
+                    <label for="password" class="form-label small fw-bold text-muted text-uppercase">Senha</label>
+                    <div class="position-relative">
+                        <i class="bi bi-lock input-group-icon"></i>
+                        <input type="password" class="form-control" id="password" name="senha" 
+                               placeholder="Sua senha secreta" required>
+                        <button type="button" class="password-toggle" id="togglePassword">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-login w-100 mb-3">
+                    Acessar Sistema <i class="bi bi-chevron-right ms-1"></i>
+                </button>
+            </form>
+        </div>
+
+        <div class="system-info">
+            <p class="mb-1 fw-bold">Núcleo de Estudos da Violência - USP</p>
+            <p class="mb-0 opacity-75">© {{ ano_atual|default('2026') }} - Todos os direitos reservados</p>
+        </div>
+    </div>
+
+    <script>
+        // Lógica para mostrar/esconder senha
+        const togglePassword = document.querySelector('#togglePassword');
+        const password = document.querySelector('#password');
+
+        togglePassword.addEventListener('click', function (e) {
+            const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
+            password.setAttribute('type', type);
+            this.querySelector('i').classList.toggle('bi-eye');
+            this.querySelector('i').classList.toggle('bi-eye-slash');
+        });
+
+        // Auto-hide alert messages
+        setTimeout(function() {
+            let alerts = document.querySelectorAll('.alert');
+            alerts.forEach(function(alert) {
+                alert.style.transition = "opacity 0.5s ease";
+                alert.style.opacity = "0";
+                setTimeout(() => alert.remove(), 500);
+            });
+        }, 5000);
+    </script>
+</body>
+</html>

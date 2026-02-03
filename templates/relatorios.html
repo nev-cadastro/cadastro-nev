@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}Relatórios Personalizados - NEV USP{% endblock %}
+
+{% block breadcrumb %}
+    <li class="breadcrumb-item active">Relatórios Personalizados</li>
+{% endblock %}
+
+{% block page_title %}Gerador de Relatórios{% endblock %}
+
+{% block content %}
+<form action="#" method="POST" id="formGeradorRelatorio">
+    <div class="row g-4">
+        
+        <!-- COLUNA DA ESQUERDA: FILTROS DE PESSOAS -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white py-3">
+                    <h6 class="fw-bold mb-0 text-primary"><i class="bi bi-funnel me-2"></i>1. Filtrar Público</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Vínculo</label>
+                        <select name="filtro_vinculo" class="form-select form-select-sm">
+                            <option value="todos">Todos os Vínculos</option>
+                            {% for vinc in vinculos %}
+                            <option value="{{ vinc }}">{{ vinc }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Departamento</label>
+                        <select name="filtro_departamento" class="form-select form-select-sm">
+                            <option value="todos">Todos os Departamentos</option>
+                            {% for dep in departamentos %}
+                            <option value="{{ dep }}">{{ dep }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Status</label>
+                        <select name="filtro_status" class="form-select form-select-sm">
+                            <option value="Ativo">Apenas Ativos</option>
+                            <option value="Inativo">Apenas Inativos</option>
+                            <option value="todos">Todos</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm bg-primary text-white">
+                <div class="card-body">
+                    <h6 class="fw-bold mb-3"><i class="bi bi-file-earmark-arrow-down me-2"></i>Ação Final</h6>
+                    <div class="d-grid gap-2">
+                        <button type="submit" name="formato" value="pdf" class="btn btn-light btn-sm fw-bold">
+                            <i class="bi bi-file-pdf text-danger me-2"></i>Gerar Documento PDF
+                        </button>
+                        <button type="submit" name="formato" value="excel" class="btn btn-light btn-sm fw-bold">
+                            <i class="bi bi-file-earmark-spreadsheet text-success me-2"></i>Exportar Planilha Excel
+                        </button>
+                    </div>
+                    <p class="smaller opacity-75 mt-3 mb-0 text-center">
+                        O relatório será gerado instantaneamente com base nos campos selecionados ao lado.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- COLUNA DA DIREITA: SELEÇÃO DE CAMPOS -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="fw-bold mb-0 text-primary"><i class="bi bi-check2-square me-2"></i>2. Selecionar Dados do Relatório</h6>
+                    <button type="button" class="btn btn-link btn-sm text-decoration-none p-0" onclick="marcarTodos()">Selecionar Tudo</button>
+                </div>
+                <div class="card-body p-4">
+                    <p class="text-muted smaller mb-4">Marque as informações que deseja que apareçam como colunas no seu relatório:</p>
+                    
+                    <div class="row">
+                        {% for categoria, campos in categorias_campos.items() %}
+                        <div class="col-md-4 mb-4">
+                            <h6 class="fw-bold border-bottom pb-2 mb-3 small text-uppercase" style="letter-spacing: 1px;">
+                                {{ categoria }}
+                            </h6>
+                            {% for id, label in campos %}
+                            <div class="form-check mb-2">
+                                <input class="form-check-input campo-checkbox" type="checkbox" name="campos" value="{{ id }}" id="check_{{ id }}" 
+                                    {% if id in ['nome_completo', 'tipo_vinculo', 'departamento'] %}checked{% endif %}>
+                                <label class="form-check-label smaller" for="check_{{ id }}">
+                                    {{ label }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="alert alert-info border-0 mt-3 d-flex align-items-center">
+                        <i class="bi bi-info-circle-fill me-3 fs-4"></i>
+                        <div class="smaller">
+                            <strong>Dica de Organização:</strong> Os campos aparecerão no relatório na ordem de prioridade do sistema (Identificação > Contato > Institucional).
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</form>
+
+<script>
+    function marcarTodos() {
+        const checkboxes = document.querySelectorAll('.campo-checkbox');
+        const algumDesmarcado = Array.from(checkboxes).some(cb => !cb.checked);
+        checkboxes.forEach(cb => cb.checked = algumDesmarcado);
+    }
+</script>
+
+<style>
+    .smaller { font-size: 0.85rem; }
+    .card-header { border-bottom: 1px solid rgba(0,0,0,0.05) !important; }
+    .form-check-input:checked { background-color: var(--nev-primary); border-color: var(--nev-primary); }
+</style>
+{% endblock %}

@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Configurações do Sistema - NEV USP{% endblock %}
+
+{% block breadcrumb %}
+    <li class="breadcrumb-item active">Configurações</li>
+{% endblock %}
+
+{% block page_title %}Configurações{% endblock %}
+{% block page_subtitle %}Painel de controle e ferramentas administrativas do sistema.{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-xl-10">
+
+        {% if current_user.nivel_acesso == 'admin' %}
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-6 col-lg-4">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="flex-shrink-0 bg-info bg-opacity-10 p-3 rounded-3 me-3">
+                            <i class="bi bi-database text-info fs-4"></i>
+                        </div>
+                        <div>
+                            <small class="text-muted d-block text-uppercase fw-bold" style="font-size: 0.7rem;">Banco de Dados</small>
+                            <span class="fw-bold">SQLite 3.0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="flex-shrink-0 bg-success bg-opacity-10 p-3 rounded-3 me-3">
+                            <i class="bi bi-shield-check text-success fs-4"></i>
+                        </div>
+                        <div>
+                            <small class="text-muted d-block text-uppercase fw-bold" style="font-size: 0.7rem;">Segurança</small>
+                            <span class="fw-bold">Ativa (SSL/Hash)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="flex-shrink-0 bg-primary bg-opacity-10 p-3 rounded-3 me-3">
+                            <i class="bi bi-cpu text-primary fs-4"></i>
+                        </div>
+                        <div>
+                            <small class="text-muted d-block text-uppercase fw-bold" style="font-size: 0.7rem;">Versão</small>
+                            <span class="fw-bold">v{{ app_version|default('1.0.0') }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-md-6">
+                <div class="card h-100 border-0 shadow-sm hover-shadow transition">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="bg-primary text-white rounded-3 p-2 me-3">
+                                <i class="bi bi-people-fill fs-4"></i>
+                            </div>
+                            <h5 class="card-title mb-0 fw-bold">Usuários do Sistema</h5>
+                        </div>
+                        <p class="text-muted small">Crie, edite e gerencie as permissões de acesso dos administradores e operadores do sistema.</p>
+                        <a href="{{ url_for('listar_usuarios') }}" class="btn btn-outline-primary btn-sm mt-2 stretched-link">
+                            Acessar Gerenciamento
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card h-100 border-0 shadow-sm hover-shadow transition">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="bg-success text-white rounded-3 p-2 me-3">
+                                <i class="bi bi-file-earmark-arrow-down fs-4"></i>
+                            </div>
+                            <h5 class="card-title mb-0 fw-bold">Exportar Base</h5>
+                        </div>
+                        <p class="text-muted small">Baixe a base completa de colaboradores em formato CSV para backup ou integração com outras ferramentas.</p>
+                        <a href="{{ url_for('exportar_colaboradores_csv') }}" class="btn btn-outline-success btn-sm mt-2 stretched-link">
+                            Gerar Arquivo CSV
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card h-100 border-0 shadow-sm hover-shadow transition">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="bg-dark text-white rounded-3 p-2 me-3">
+                                <i class="bi bi-bug fs-4"></i>
+                            </div>
+                            <h5 class="card-title mb-0 fw-bold">Ferramentas de Debug</h5>
+                        </div>
+                        <p class="text-muted small">Visualize rotas ativas e informações técnicas do ambiente. Recomendado apenas para manutenção técnica.</p>
+                        <a href="{{ url_for('debug_routes') }}" class="btn btn-outline-dark btn-sm mt-2 stretched-link">
+                            Abrir Debug
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card h-100 border-0 shadow-sm border-dashed">
+                    <div class="card-body p-4 d-flex flex-column justify-content-center align-items-center text-center">
+                        <i class="bi bi-clock-history fs-2 text-muted mb-2"></i>
+                        <h6 class="fw-bold mb-1">Logs de Auditoria</h6>
+                        <p class="text-muted small mb-0">Recurso em desenvolvimento para rastrear alterações em tempo real.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Adicione este card na lista de configurações -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-download fa-3x text-primary mb-3"></i>
+                    <h5 class="card-title">Backup do Sistema</h5>
+                    <p class="card-text">Faça backup de todos os dados e código fonte.</p>
+                    <a href="{{ url_for('backup_page') }}" class="btn btn-primary">
+                        <i class="fas fa-cog me-2"></i>Gerenciar Backups
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        {% else %}
+
+        <div class="card border-0 shadow-sm py-5 text-center">
+            <div class="card-body">
+                <div class="display-1 text-warning mb-4"><i class="bi bi-shield-lock"></i></div>
+                <h4 class="fw-bold">Acesso Restrito</h4>
+                <p class="text-muted mx-auto" style="max-width: 400px;">
+                    Desculpe, mas as configurações globais do sistema estão disponíveis apenas para usuários com nível de acesso <strong>Administrador</strong>.
+                </p>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-primary px-4 mt-3">Voltar ao Dashboard</a>
+            </div>
+        </div>
+
+        {% endif %}
+    </div>
+</div>
+
+<style>
+    .hover-shadow:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+    }
+    .transition {
+        transition: all 0.3s ease;
+    }
+    .border-dashed {
+        border: 2px dashed var(--nev-border) !important;
+        background: transparent;
+    }
+</style>
+{% endblock %}
