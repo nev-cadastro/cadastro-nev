@@ -1883,6 +1883,31 @@ def init_db():
 
         app.logger.info('✅ Banco de dados inicializado com sucesso!')
 
+
+# ============================================================================
+# CONFIGURAÇÃO PARA RAILWAY
+# ============================================================================
+if __name__ == '__main__':
+    # Configurar logging
+    if not app.debug:
+        handler = RotatingFileHandler('nev_app.log', maxBytes=20000, backupCount=5)
+        handler.setLevel(logging.WARNING)
+        app.logger.addHandler(handler)
+
+    # Inicializar banco de dados
+    init_db()
+
+    print("=" * 60)
+    print("  Sistema NEV USP - Cadastro de Colaboradores v2.7")
+    print("=" * 60)
+    print("Modo:", "DESENVOLVIMENTO" if app.config['DEBUG'] else "PRODUÇÃO")
+    print("Banco de dados:", app.config['SQLALCHEMY_DATABASE_URI'])
+    print("=" * 60)
+
+    # Para Railway, use a porta da variável de ambiente
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=app.config['DEBUG'], host='0.0.0.0', port=port)
+
 # ============================================================================
 # EXECUÇÃO PRINCIPAL
 # ============================================================================
