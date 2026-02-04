@@ -65,13 +65,49 @@ app.config['SESSION_COOKIE_SECURE'] = IS_PYTHONANYWHERE
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
-# Configuração do banco de dados
-db_path = os.path.join(DATA_DIR, 'nev.db')
-if sys.platform == 'win32':
-    # Windows usa barras normais
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+# ============================================================================
+# CONFIGURAÇÃO DO BANCO DE DADOS CORRIGIDA
+# ============================================================================
+
+# Detectar se queremos forçar SQLite local (para desenvolvimento)
+FORCE_SQLITE_LOCAL = False  # ← MUDE PARA False quando for para produção
+
+if FORCE_SQLITE_LOCAL or not IS_PYTHONANYWHERE:
+    # SEMPRE usar SQLite local para desenvolvimento
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    DATA_DIR = os.path.join(BASE_DIR, 'data')
+    os.makedirs(DATA_DIR, exist_ok=True)
+    db_path = os.path.join(DATA_DIR, 'nev.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path.replace('\\', '/')
+    print(f"✅ Usando SQLite local: {db_path}")
+    
+elif IS_PYTHONANYWHERE:
+    # PythonAnywhere (SQLite)
+    username = getpass.getuser()
+    BASE_DIR = f'/home/{username}/mysite'
+    DATA_DIR = os.path.join(BASE_DIR, 'data')
+    os.makedirs(DATA_DIR, exist_ok=True)
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(DATA_DIR, 'nev.db')
+    
 else:
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+    # PostgreSQL em produção (apenas se DATABASE_URL existir E não forçamos SQLite)
+    DATABASE_URL = os.environ.get('DATABASE_URL')
+    if DATABASE_URL:
+        app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
+        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+            'pool_pre_ping': True,
+            'pool_recycle': 300,
+            'pool_size': 10,
+            'max_overflow': 20,
+        }
+        print("✅ Usando PostgreSQL (Supabase/Railway)")
+    else:
+        # Fallback para SQLite se não tiver DATABASE_URL
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        DATA_DIR = os.path.join(BASE_DIR, 'data')
+        os.makedirs(DATA_DIR, exist_ok=True)
+        db_path = os.path.join(DATA_DIR, 'nev.db')
+        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path.replace('\\', '/')
 
 app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'static/uploads')
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -384,7 +420,7 @@ class Colaborador(db.Model):
     cpf = db.Column(db.String(14), unique=True, nullable=False, index=True)
     data_nascimento = db.Column(db.Date)
 
-    # Contato
+    # Contato (ATUALIZADO: removido email_pessoal e telefone_comercial)
     email_institucional = db.Column(db.String(120), nullable=False, index=True)
     celular = db.Column(db.String(20), nullable=False)
     whatsapp = db.Column(db.Boolean, default=False)
@@ -402,7 +438,7 @@ class Colaborador(db.Model):
     data_ingresso = db.Column(db.Date, nullable=False)
     tipo_vinculo = db.Column(db.String(50), nullable=False)
     programa_projeto = db.Column(db.String(100))
-    departamento = db.Column(db.String(100))
+    departamento = db.Column(db.String(100))  # RENOMEADO: Linha de Pesquisa/Departamento
     lotacao = db.Column(db.String(100))
 
     # Horários
@@ -413,12 +449,12 @@ class Colaborador(db.Model):
 
     # Imprensa
     atende_imprensa = db.Column(db.Boolean, default=False)
-    tipos_imprensa = db.Column(db.String(200))
-    assuntos_especializacao = db.Column(db.Text)
+    tipos_imprensa = db.Column(db.String(200))  # Tipos de veículos
+    assuntos_especializacao = db.Column(db.Text)  # Temas de especialidade
     disponibilidade_contato = db.Column(db.String(100))
     observacoes_imprensa = db.Column(db.Text)
 
-    # Acadêmico/Profissional
+    # Acadêmico/Profissional (campos do v2.6)
     curriculo_lattes = db.Column(db.String(200))
     orcid = db.Column(db.String(50))
     linkedin = db.Column(db.String(200))
@@ -546,6 +582,35 @@ def login():
 
     return render_template('login.html')
 
+@app.route('/alterar-senha', methods=['GET', 'POST'])
+@login_required
+def alterar_senha():
+    if request.method == 'POST':
+        senha_atual = request.form.get('senha_atual', '')
+        nova_senha = request.form.get('nova_senha', '')
+        confirmar_senha = request.form.get('confirmar_senha', '')
+
+        if not current_user.check_password(senha_atual):
+            flash('Senha atual incorreta.', 'danger')
+            return render_template('alterar_senha.html')
+
+        if nova_senha != confirmar_senha:
+            flash('As novas senhas não coincidem.', 'danger')
+            return render_template('alterar_senha.html')
+
+        if len(nova_senha) < 8:
+            flash('A senha deve ter pelo menos 8 caracteres.', 'danger')
+            return render_template('alterar_senha.html')
+
+        current_user.set_password(nova_senha)
+        db.session.commit()
+
+        registrar_log('Senha alterada', 'Autenticação')
+        flash('✅ Senha alterada com sucesso!', 'success')
+        return redirect(url_for('dashboard'))
+
+    return render_template('alterar_senha.html')
+
 @app.route('/logout')
 @login_required
 def logout():
@@ -590,6 +655,37 @@ def api_buscar_cep(cep):
             'success': False,
             'message': f'Erro ao buscar CEP: {str(e)}'
         }), 500
+
+# ============================================================================
+# ROTA PARA SALVAR CEP MANUALMENTE NO CACHE
+# ============================================================================
+@app.route('/api/salvar-cep-cache', methods=['POST'])
+@login_required
+def salvar_cep_cache():
+    """Salva um CEP pesquisado manualmente no cache"""
+    try:
+        data = request.get_json()
+        cep = data.get('cep', '')
+        endereco = data.get('endereco', {})
+
+        if not cep or not endereco:
+            return jsonify({'success': False, 'message': 'Dados incompletos'}), 400
+
+        cep_limpo = re.sub(r'\D', '', cep)
+        if len(cep_limpo) != 8:
+            return jsonify({'success': False, 'message': 'CEP inválido'}), 400
+
+        sucesso = salvar_no_cache(cep_limpo, endereco)
+
+        if sucesso:
+            registrar_log(f'Adicionou CEP {cep} ao cache manualmente', 'CEP')
+            return jsonify({'success': True, 'message': 'CEP salvo no cache!'})
+        else:
+            return jsonify({'success': False, 'message': 'Erro ao salvar CEP'}), 500
+
+    except Exception as e:
+        app.logger.error(f'Erro ao salvar CEP no cache: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 # ============================================================================
 # DASHBOARD OTIMIZADO
@@ -681,6 +777,301 @@ def listar_colaboradores():
         app.logger.error(f'Erro ao listar colaboradores: {e}')
         flash('Erro ao carregar lista de colaboradores.', 'danger')
         return redirect(url_for('dashboard'))
+
+@app.route('/colaborador/novo', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def novo_colaborador():
+    """Cadastro de colaborador em 5 passos"""
+
+    if request.method == 'POST':
+        # Se for uma requisição AJAX para salvar temporariamente os dados
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            acao = request.form.get('acao')
+
+            if acao == 'salvar_passo':
+                passo = int(request.form.get('passo', 1))
+                dados = {}
+
+                # Coletar dados do passo atual
+                if passo == 1:
+                    dados['nome_completo'] = request.form.get('nome_completo', '')
+                    dados['nome_social'] = request.form.get('nome_social', '')
+                    dados['cpf'] = request.form.get('cpf', '')
+                    dados['rg'] = request.form.get('rg', '')
+                    dados['data_nascimento'] = request.form.get('data_nascimento', '')
+
+                elif passo == 2:
+                    dados['email_institucional'] = request.form.get('email_institucional', '')
+                    dados['celular'] = request.form.get('celular', '')
+                    dados['whatsapp'] = 'whatsapp' in request.form
+                    dados['cep'] = request.form.get('cep', '')
+                    dados['endereco'] = request.form.get('endereco', '')
+                    dados['numero'] = request.form.get('numero', '')
+                    dados['bairro'] = request.form.get('bairro', '')
+                    dados['cidade'] = request.form.get('cidade', '')
+                    dados['estado'] = request.form.get('estado', '')
+
+                elif passo == 3:
+                    dados['tipo_vinculo'] = request.form.get('tipo_vinculo', '')
+                    dados['departamento'] = request.form.get('departamento', '')
+                    dados['lotacao'] = request.form.get('lotacao', '')
+                    dados['data_ingresso'] = request.form.get('data_ingresso', '')
+                    dados['dias_presenciais'] = ','.join(request.form.getlist('dias_presenciais'))
+
+                elif passo == 4:
+                    dados['atende_imprensa'] = 'atende_imprensa' in request.form
+                    dados['tipos_imprensa'] = ', '.join(request.form.getlist('tipos_imprensa'))
+                    dados['assuntos_especializacao'] = request.form.get('assuntos_especializacao', '')
+                    dados['disponibilidade_contato'] = request.form.get('disponibilidade_contato', '')
+
+                elif passo == 5:
+                    dados['curriculo_lattes'] = request.form.get('curriculo_lattes', '')
+                    dados['orcid'] = request.form.get('orcid', '')
+                    dados['linkedin'] = request.form.get('linkedin', '')
+                    dados['observacoes'] = request.form.get('observacoes', '')
+
+                # Salvar na sessão
+                session[f'colaborador_passo_{passo}'] = dados
+
+                return jsonify({
+                    'success': True,
+                    'message': f'Dados do passo {passo} salvos temporariamente'
+                })
+
+            elif acao == 'finalizar_cadastro':
+                # Coletar todos os dados dos 5 passos
+                dados_finais = {}
+
+                for passo in range(1, 6):
+                    dados_passo = session.get(f'colaborador_passo_{passo}', {})
+                    dados_finais.update(dados_passo)
+
+                try:
+                    # Validar CPF
+                    cpf = formatar_cpf(dados_finais.get('cpf', '').strip())
+                    if not validar_cpf(cpf):
+                        return jsonify({
+                            'success': False,
+                            'message': 'CPF inválido. Por favor, verifique o número.'
+                        }), 400
+
+                    if Colaborador.query.filter_by(cpf=cpf).first():
+                        return jsonify({
+                            'success': False,
+                            'message': 'Erro: Este CPF já está cadastrado no sistema.'
+                        }), 400
+
+                    # Validar campos obrigatórios
+                    if not dados_finais.get('nome_completo'):
+                        return jsonify({
+                            'success': False,
+                            'message': 'Nome completo é obrigatório.'
+                        }), 400
+
+                    if not dados_finais.get('email_institucional'):
+                        return jsonify({
+                            'success': False,
+                            'message': 'Email institucional é obrigatório.'
+                        }), 400
+
+                    if not dados_finais.get('celular'):
+                        return jsonify({
+                            'success': False,
+                            'message': 'Celular é obrigatório.'
+                        }), 400
+
+                    if not dados_finais.get('tipo_vinculo'):
+                        return jsonify({
+                            'success': False,
+                            'message': 'Tipo de vínculo é obrigatório.'
+                        }), 400
+
+                    if not dados_finais.get('data_ingresso'):
+                        return jsonify({
+                            'success': False,
+                            'message': 'Data de ingresso é obrigatória.'
+                        }), 400
+
+                    # Preparar dados para o banco
+                    dados_db = {
+                        'nome_completo': sanitize_input(dados_finais.get('nome_completo', '')).title(),
+                        'nome_social': sanitize_input(dados_finais.get('nome_social', '')).title(),
+                        'rg': sanitize_input(dados_finais.get('rg', '')),
+                        'cpf': cpf,
+                        'email_institucional': sanitize_input(dados_finais.get('email_institucional', '')).lower(),
+                        'celular': formatar_telefone(sanitize_input(dados_finais.get('celular', ''))),
+                        'whatsapp': dados_finais.get('whatsapp', False),
+                        'tipo_vinculo': dados_finais.get('tipo_vinculo', ''),
+                        'departamento': sanitize_input(dados_finais.get('departamento', '')),
+                        'lotacao': sanitize_input(dados_finais.get('lotacao', '')),
+                        'atende_imprensa': dados_finais.get('atende_imprensa', False),
+                        'tipos_imprensa': dados_finais.get('tipos_imprensa', ''),
+                        'assuntos_especializacao': sanitize_input(dados_finais.get('assuntos_especializacao', '')),
+                        'disponibilidade_contato': sanitize_input(dados_finais.get('disponibilidade_contato', '')),
+                        'curriculo_lattes': sanitize_input(dados_finais.get('curriculo_lattes', '')),
+                        'orcid': sanitize_input(dados_finais.get('orcid', '')),
+                        'linkedin': sanitize_input(dados_finais.get('linkedin', '')),
+                        'observacoes': sanitize_input(dados_finais.get('observacoes', '')),
+                        'status': 'Ativo',
+                        'cadastrado_por': current_user.id
+                    }
+
+                    # Processar datas
+                    try:
+                        data_ingresso = dados_finais.get('data_ingresso')
+                        if data_ingresso:
+                            dados_db['data_ingresso'] = datetime.strptime(data_ingresso, '%Y-%m-%d').date()
+                    except ValueError:
+                        return jsonify({
+                            'success': False,
+                            'message': 'Data de ingresso inválida.'
+                        }), 400
+
+                    try:
+                        data_nascimento = dados_finais.get('data_nascimento')
+                        if data_nascimento:
+                            dados_db['data_nascimento'] = datetime.strptime(data_nascimento, '%Y-%m-%d').date()
+                    except ValueError:
+                        pass  # Data de nascimento é opcional
+
+                    # Dias presenciais
+                    dias_presenciais = dados_finais.get('dias_presenciais', '')
+                    if dias_presenciais:
+                        dados_db['dias_presenciais'] = dias_presenciais
+
+                    # Endereço
+                    dados_db.update({
+                        'cep': sanitize_input(dados_finais.get('cep', '')),
+                        'endereco': sanitize_input(dados_finais.get('endereco', '')),
+                        'numero': sanitize_input(dados_finais.get('numero', '')),
+                        'bairro': sanitize_input(dados_finais.get('bairro', '')),
+                        'cidade': sanitize_input(dados_finais.get('cidade', '')),
+                        'estado': sanitize_input(dados_finais.get('estado', '')),
+                    })
+
+                    # Gerar matrícula e criar colaborador
+                    dados_db['matricula'] = gerar_matricula()
+                    colaborador = Colaborador(**dados_db)
+                    db.session.add(colaborador)
+                    db.session.commit()
+
+                    # Registrar log
+                    registrar_log(f'Cadastrou colaborador {colaborador.nome_completo}',
+                                'Colaboradores',
+                                f'Matrícula: {colaborador.matricula}')
+
+                    # Limpar dados da sessão
+                    for passo in range(1, 6):
+                        session.pop(f'colaborador_passo_{passo}', None)
+
+                    return jsonify({
+                        'success': True,
+                        'message': f'✅ Colaborador {colaborador.nome_completo} cadastrado! Matrícula: {colaborador.matricula}',
+                        'redirect_url': url_for('ver_colaborador', id=colaborador.id)
+                    })
+
+                except Exception as e:
+                    db.session.rollback()
+                    app.logger.error(f'Erro crítico ao cadastrar colaborador: {str(e)}')
+                    return jsonify({
+                        'success': False,
+                        'message': f'Erro ao processar cadastro: {str(e)}'
+                    }), 500
+
+        # Se não for AJAX, processar o formulário tradicional (fallback)
+        try:
+            vinculo = request.form.get('tipo_vinculo')
+            if not vinculo:
+                flash('O campo "Tipo de Vínculo" é obrigatório.', 'danger')
+                return render_template('colaborador_form.html', dados=request.form)
+
+            cpf = formatar_cpf(request.form.get('cpf', '').strip())
+            if not validar_cpf(cpf):
+                flash('CPF inválido. Por favor, verifique o número.', 'danger')
+                return render_template('colaborador_form.html', dados=request.form)
+
+            if Colaborador.query.filter_by(cpf=cpf).first():
+                flash('Erro: Este CPF já está cadastrado no sistema.', 'danger')
+                return render_template('colaborador_form.html', dados=request.form)
+
+            dados = {
+                'nome_completo': sanitize_input(request.form.get('nome_completo', '')).title(),
+                'nome_social': sanitize_input(request.form.get('nome_social', '')).title(),
+                'rg': sanitize_input(request.form.get('rg', '')),
+                'cpf': cpf,
+                'email_institucional': sanitize_input(request.form.get('email_institucional', '')).lower(),
+                'celular': formatar_telefone(sanitize_input(request.form.get('celular', ''))),
+                'whatsapp': 'whatsapp' in request.form,
+                'tipo_vinculo': vinculo,
+                'departamento': sanitize_input(request.form.get('departamento', '')),
+                'lotacao': sanitize_input(request.form.get('lotacao', '')),
+                'atende_imprensa': 'atende_imprensa' in request.form,
+                'tipos_imprensa': ', '.join(request.form.getlist('tipos_imprensa')),
+                'assuntos_especializacao': sanitize_input(request.form.get('assuntos_especializacao', '')),
+                'disponibilidade_contato': sanitize_input(request.form.get('disponibilidade_contato', '')),
+                'curriculo_lattes': sanitize_input(request.form.get('curriculo_lattes', '')),
+                'orcid': sanitize_input(request.form.get('orcid', '')),
+                'linkedin': sanitize_input(request.form.get('linkedin', '')),
+                'observacoes': sanitize_input(request.form.get('observacoes', '')),
+                'status': 'Ativo',
+                'cadastrado_por': current_user.id
+            }
+
+            # Processar datas
+            try:
+                data_ingresso = request.form.get('data_ingresso')
+                if data_ingresso:
+                    dados['data_ingresso'] = datetime.strptime(data_ingresso, '%Y-%m-%d').date()
+                else:
+                    flash('O campo "Data de Ingresso" é obrigatório.', 'danger')
+                    return render_template('colaborador_form.html', dados=request.form)
+            except ValueError:
+                flash('Data de ingresso inválida.', 'danger')
+                return render_template('colaborador_form.html', dados=request.form)
+
+            try:
+                data_nascimento = request.form.get('data_nascimento')
+                if data_nascimento:
+                    dados['data_nascimento'] = datetime.strptime(data_nascimento, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+
+            # Dias presenciais
+            dias_presenciais = request.form.getlist('dias_presenciais')
+            if dias_presenciais:
+                dados['dias_presenciais'] = ','.join(dias_presenciais)
+
+            # Endereço
+            dados.update({
+                'cep': sanitize_input(request.form.get('cep', '')),
+                'endereco': sanitize_input(request.form.get('endereco', '')),
+                'numero': sanitize_input(request.form.get('numero', '')),
+                'bairro': sanitize_input(request.form.get('bairro', '')),
+                'cidade': sanitize_input(request.form.get('cidade', '')),
+                'estado': sanitize_input(request.form.get('estado', '')),
+            })
+
+            dados['matricula'] = gerar_matricula()
+            colaborador = Colaborador(**dados)
+            db.session.add(colaborador)
+            db.session.commit()
+
+            registrar_log(f'Cadastrou colaborador {colaborador.nome_completo}',
+                          'Colaboradores',
+                          f'Matrícula: {colaborador.matricula}')
+
+            flash(f'✅ Colaborador {colaborador.nome_completo} cadastrado! Matrícula: {colaborador.matricula}', 'success')
+            return redirect(url_for('ver_colaborador', id=colaborador.id))
+
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f'Erro crítico ao cadastrar colaborador: {str(e)}')
+            flash(f'Erro ao processar cadastro: {str(e)}', 'danger')
+            return render_template('colaborador_form.html', dados=request.form)
+
+    # GET request - mostrar formulário em etapas
+    return render_template('colaborador_form_etapas.html')
 
 @app.route('/colaborador/<int:id>')
 @login_required
@@ -814,6 +1205,37 @@ def excluir_colaborador(id):
 
     return redirect(url_for('listar_colaboradores'))
 
+@app.route('/colaborador/<int:id>/observacao', methods=['POST'])
+@login_required
+def adicionar_observacao(id):
+    texto = request.form.get('observacao_texto')
+    if texto:
+        nova_obs = Observacao(
+            colaborador_id=id,
+            texto=sanitize_input(texto),
+            usuario_nome=current_user.nome_completo
+        )
+        db.session.add(nova_obs)
+        db.session.commit()
+        registrar_log(f"Adicionou observação ao colaborador ID {id}", "Observações", detalhes=texto)
+        flash('Observação adicionada!', 'success')
+    return redirect(url_for('ver_colaborador', id=id))
+
+@app.route('/observacao/<int:id>/excluir', methods=['POST'])
+@login_required
+@admin_required
+def excluir_observacao(id):
+    obs = Observacao.query.get_or_404(id)
+    colab_id = obs.colaborador_id
+    detalhe_removido = obs.texto
+
+    db.session.delete(obs)
+    db.session.commit()
+
+    registrar_log(f"Excluiu observação do colaborador ID {colab_id}", "Observações", detalhes=detalhe_removido)
+    flash('Observação removida e registrada no log.', 'info')
+    return redirect(url_for('ver_colaborador', id=colab_id))
+
 # ============================================================================
 # EXPORTAÇÃO E RELATÓRIOS
 # ============================================================================
@@ -837,6 +1259,132 @@ def exportar_colaboradores_csv():
         flash('Erro ao exportar dados.', 'danger')
         return redirect(url_for('listar_colaboradores'))
 
+@app.route('/relatorios', methods=['GET', 'POST'])
+@login_required
+@supervisor_required
+def relatorios():
+    """Relatórios personalizados"""
+
+    mapeamento_campos = {
+        'matricula': 'Matrícula',
+        'nome_completo': 'Nome Completo',
+        'nome_social': 'Nome Social',
+        'cpf': 'CPF',
+        'rg': 'RG',
+        'data_nascimento': 'Data de Nascimento',
+        'email_institucional': 'Email Principal',
+        'celular': 'Celular',
+        'whatsapp': 'WhatsApp',
+        'tipo_vinculo': 'Vínculo',
+        'departamento': 'Linha de Pesquisa/Departamento',
+        'lotacao': 'Lotação',
+        'data_ingresso': 'Data de Ingresso',
+        'status': 'Status',
+        'atende_imprensa': 'Atende Imprensa',
+        'tipos_imprensa': 'Tipos de Veículos de Imprensa',
+        'assuntos_especializacao': 'Temas de Especialidade',
+        'orcid': 'ORCID',
+        'linkedin': 'LinkedIn',
+        'curriculo_lattes': 'Currículo Lattes'
+    }
+
+    if request.method == 'POST':
+        try:
+            f_vinculo = request.form.get('filtro_vinculo')
+            f_dep = request.form.get('filtro_departamento')
+            f_status = request.form.get('filtro_status')
+            campos_selecionados = request.form.getlist('campos')
+
+            if not campos_selecionados:
+                flash('Selecione pelo menos um campo para o relatório.', 'warning')
+                return redirect(url_for('relatorios'))
+
+            query = Colaborador.query
+
+            if f_vinculo and f_vinculo != 'todos':
+                query = query.filter(Colaborador.tipo_vinculo == f_vinculo)
+            if f_dep and f_dep != 'todos':
+                query = query.filter(Colaborador.departamento == f_dep)
+            if f_status and f_status != 'todos':
+                query = query.filter(Colaborador.status == f_status)
+
+            colaboradores = query.all()
+
+            output = StringIO()
+            output.write('\ufeff')
+            writer = csv.writer(output, delimiter=';', quoting=csv.QUOTE_ALL)
+
+            header = [mapeamento_campos.get(c, c) for c in campos_selecionados]
+            writer.writerow(header)
+
+            for colab in colaboradores:
+                linha = []
+                for campo in campos_selecionados:
+                    valor = getattr(colab, campo, '')
+
+                    if valor is None:
+                        valor = ''
+                    elif isinstance(valor, bool):
+                        valor = 'Sim' if valor else 'Não'
+                    elif isinstance(valor, (datetime, date)):
+                        valor = valor.strftime('%d/%m/%Y')
+                    elif isinstance(valor, time):
+                        valor = valor.strftime('%H:%M')
+
+                    linha.append(valor)
+                writer.writerow(linha)
+
+            output.seek(0)
+            filename = f"relatorio_nev_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+
+            return Response(
+                output.getvalue(),
+                mimetype="text/csv",
+                headers={
+                    "Content-Disposition": f"attachment; filename={filename}",
+                    "Content-Type": "text/csv; charset=utf-8"
+                }
+            )
+
+        except Exception as e:
+            app.logger.error(f'Erro ao gerar relatório: {str(e)}')
+            flash(f'Erro ao processar o relatório: {str(e)}', 'danger')
+            return redirect(url_for('relatorios'))
+
+    departamentos = db.session.query(Colaborador.departamento).distinct().all()
+    vinculos = db.session.query(Colaborador.tipo_vinculo).distinct().all()
+
+    lista_deps = sorted([d[0] for d in departamentos if d[0]])
+    lista_vincs = sorted([v[0] for v in vinculos if v[0]])
+
+    categorias_campos = {
+        'Identificação': [
+            ('matricula', 'Matrícula'), ('nome_completo', 'Nome Completo'),
+            ('nome_social', 'Nome Social'), ('cpf', 'CPF'), ('rg', 'RG'),
+            ('data_nascimento', 'Data de Nascimento')
+        ],
+        'Contato': [
+            ('email_institucional', 'Email Principal'),
+            ('celular', 'Celular'), ('whatsapp', 'WhatsApp')
+        ],
+        'Institucional': [
+            ('tipo_vinculo', 'Tipo de Vínculo'), ('departamento', 'Linha de Pesquisa/Departamento'),
+            ('lotacao', 'Lotação'), ('data_ingresso', 'Data de Ingresso'), ('status', 'Status')
+        ],
+        'Imprensa': [
+            ('atende_imprensa', 'Atende Imprensa'), ('tipos_imprensa', 'Tipos de Veículos'),
+            ('assuntos_especializacao', 'Temas de Especialidade')
+        ],
+        'Acadêmico': [
+            ('orcid', 'ORCID'), ('linkedin', 'LinkedIn'), ('curriculo_lattes', 'Currículo Lattes')
+        ]
+    }
+
+    return render_template('relatorios.html',
+                           departamentos=lista_deps,
+                           vinculos=lista_vincs,
+                           categorias_campos=categorias_campos)
+
 # ============================================================================
 # ROTAS DE CONFIGURAÇÕES
 # ============================================================================
@@ -845,6 +1393,32 @@ def exportar_colaboradores_csv():
 @admin_required
 def configuracoes():
     return render_template('configuracoes.html', title='Configurações')
+
+@app.route('/api/info-sistema')
+@login_required
+def api_info_sistema():
+    try:
+        total_colaboradores = Colaborador.query.count()
+        ativos_colaboradores = Colaborador.query.filter_by(status='Ativo').count()
+        imprensa_colaboradores = Colaborador.query.filter_by(atende_imprensa=True).count()
+        data_limite = datetime.utcnow() - timedelta(days=30)
+        novos_colaboradores = Colaborador.query.filter(
+            Colaborador.data_cadastro >= data_limite
+        ).count()
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'total_colaboradores': total_colaboradores,
+                'ativos_colaboradores': ativos_colaboradores,
+                'imprensa_colaboradores': imprensa_colaboradores,
+                'novos_colaboradores': novos_colaboradores,
+                'timestamp': datetime.utcnow().isoformat()
+            }
+        })
+    except Exception as e:
+        app.logger.error(f'Erro na API info-sistema: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # ============================================================================
 # ROTAS DE GERENCIAMENTO DE USUÁRIOS
@@ -887,6 +1461,158 @@ def listar_usuarios():
         app.logger.error(f'Erro ao listar usuários: {e}')
         flash('Erro ao carregar lista de usuários.', 'danger')
         return redirect(url_for('dashboard'))
+
+@app.route('/usuario/novo', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def novo_usuario():
+    if request.method == 'POST':
+        try:
+            username = sanitize_input(request.form.get('username', '')).lower()
+            nome_completo = sanitize_input(request.form.get('nome_completo', '')).title()
+            email = sanitize_input(request.form.get('email', '')).lower()
+            nivel_acesso = request.form.get('nivel_acesso', 'colaborador')
+            senha = request.form.get('senha', '')
+            confirmar_senha = request.form.get('confirmar_senha', '')
+
+            if not username or not nome_completo or not email:
+                flash('Todos os campos obrigatórios devem ser preenchidos.', 'danger')
+                return render_template('usuario_form.html', dados=request.form)
+
+            if senha != confirmar_senha:
+                flash('As senhas não coincidem.', 'danger')
+                return render_template('usuario_form.html', dados=request.form)
+
+            if len(senha) < 8:
+                flash('A senha deve ter pelo menos 8 caracteres.', 'danger')
+                return render_template('usuario_form.html', dados=request.form)
+
+            if User.query.filter_by(username=username).first():
+                flash('Nome de usuário já está em uso.', 'danger')
+                return render_template('usuario_form.html', dados=request.form)
+
+            if User.query.filter_by(email=email).first():
+                flash('Email já está cadastrado.', 'danger')
+                return render_template('usuario_form.html', dados=request.form)
+
+            usuario = User(
+                username=username,
+                nome_completo=nome_completo,
+                email=email,
+                nivel_acesso=nivel_acesso,
+                ativo=True
+            )
+            usuario.set_password(senha)
+
+            db.session.add(usuario)
+            db.session.commit()
+
+            registrar_log(f'Cadastrou usuário {usuario.username}',
+                         'Usuários',
+                         f'Email: {usuario.email}, Nível: {usuario.nivel_acesso}')
+            flash(f'✅ Usuário {usuario.nome_completo} cadastrado com sucesso!', 'success')
+
+            return redirect(url_for('listar_usuarios'))
+
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f'Erro ao cadastrar usuário: {e}')
+            flash(f'Erro ao cadastrar usuário: {str(e)}', 'danger')
+            return render_template('usuario_form.html', dados=request.form)
+
+    return render_template('usuario_form.html', title='Novo Usuário')
+
+@app.route('/usuario/<int:id>/editar', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def editar_usuario(id):
+    usuario = User.query.get_or_404(id)
+
+    if request.method == 'POST':
+        try:
+            usuario.nome_completo = sanitize_input(request.form.get('nome_completo', '')).title()
+            usuario.email = sanitize_input(request.form.get('email', '')).lower()
+            usuario.nivel_acesso = request.form.get('nivel_acesso', 'colaborador')
+            usuario.ativo = 'ativo' in request.form
+
+            novo_email = sanitize_input(request.form.get('email', '')).lower()
+            if novo_email != usuario.email:
+                if User.query.filter_by(email=novo_email).filter(User.id != id).first():
+                    flash('Email já está cadastrado para outro usuário.', 'danger')
+                    return render_template('usuario_edit.html', usuario=usuario)
+                usuario.email = novo_email
+
+            nova_senha = request.form.get('nova_senha', '')
+            if nova_senha:
+                confirmar_senha = request.form.get('confirmar_senha', '')
+                if nova_senha != confirmar_senha:
+                    flash('As novas senhas não coincidem.', 'danger')
+                    return render_template('usuario_edit.html', usuario=usuario)
+                if len(nova_senha) < 8:
+                    flash('A senha deve ter pelo menos 8 caracteres.', 'danger')
+                    return render_template('usuario_edit.html', usuario=usuario)
+                usuario.set_password(nova_senha)
+
+            db.session.commit()
+
+            registrar_log(f'Editou usuário {usuario.username}',
+                         'Usuários',
+                         f'ID: {id}, Email: {usuario.email}')
+            flash('✅ Usuário atualizado com sucesso!', 'success')
+
+            return redirect(url_for('listar_usuarios'))
+
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f'Erro ao editar usuário {id}: {e}')
+            flash(f'Erro ao atualizar usuário: {str(e)}', 'danger')
+
+    return render_template('usuario_edit.html', usuario=usuario, title='Editar Usuário')
+
+@app.route('/usuario/<int:id>/excluir', methods=['POST'])
+@login_required
+@admin_required
+def excluir_usuario(id):
+    if id == current_user.id:
+        flash('Você não pode excluir sua própria conta.', 'danger')
+        return redirect(url_for('listar_usuarios'))
+
+    usuario = User.query.get_or_404(id)
+
+    try:
+        username = usuario.username
+        nome = usuario.nome_completo
+
+        db.session.delete(usuario)
+        db.session.commit()
+
+        registrar_log(f'Excluiu usuário {username}',
+                     'Usuários',
+                     f'ID: {id}, Nome: {nome}')
+        flash('✅ Usuário excluído com sucesso!', 'success')
+
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f'Erro ao excluir usuário {id}: {e}')
+        flash(f'Erro ao excluir usuário: {str(e)}', 'danger')
+
+    return redirect(url_for('listar_usuarios'))
+
+# ============================================================================
+# ROTA DE DEBUG
+# ============================================================================
+@app.route('/debug/routes')
+@login_required
+@admin_required
+def debug_routes():
+    routes = []
+    for rule in app.url_map.iter_rules():
+        routes.append({
+            'endpoint': rule.endpoint,
+            'methods': ', '.join(rule.methods),
+            'rule': rule.rule
+        })
+    return render_template('debug_routes.html', routes=routes, title='Rotas Disponíveis')
 
 # ============================================================================
 # ROTA DE PERFIL DO USUÁRIO
@@ -942,7 +1668,7 @@ def meu_perfil():
                          page_subtitle='Gerencie suas informações pessoais')
 
 # ============================================================================
-# ROTAS DE ERRO
+# ROTAS DE ERRO SIMPLIFICADAS (mantidas)
 # ============================================================================
 @app.errorhandler(404)
 def pagina_nao_encontrada(e):
@@ -979,6 +1705,7 @@ def criar_backup():
             codigo_files = [
                 'app.py',
                 'requirements.txt',
+                'README.md'  # se existir
             ]
 
             for file in codigo_files:
@@ -997,8 +1724,9 @@ def criar_backup():
                             zipf.write(full_path, rel_path)
 
             # 3. Arquivos de dados (exceto banco de dados muito grande)
-            if os.path.exists(DATA_DIR):
-                for root, dirs, files in os.walk(DATA_DIR):
+            data_dir = os.path.join(BASE_DIR, 'data')
+            if os.path.exists(data_dir):
+                for root, dirs, files in os.walk(data_dir):
                     for file in files:
                         if not file.endswith('.db'):  # Não incluir banco grande
                             full_path = os.path.join(root, file)
@@ -1052,6 +1780,13 @@ def criar_backup():
         flash(f'Erro ao criar backup: {str(e)}', 'danger')
         return redirect(url_for('dashboard'))
 
+@app.route('/admin/backup-page')
+@login_required
+@admin_required
+def backup_page():
+    """Página de gerenciamento de backups"""
+    return render_template('backup.html', title='Backup do Sistema')
+
 @app.route('/admin/backup-db')
 @login_required
 @admin_required
@@ -1092,6 +1827,17 @@ def backup_database():
         app.logger.error(f'Erro ao fazer backup do banco: {e}')
         flash(f'Erro ao fazer backup do banco: {str(e)}', 'danger')
         return redirect(url_for('dashboard'))
+        
+@app.route('/health')
+def health_check():
+    """Health check para monitoramento"""
+    try:
+        # Verificar se banco responde
+        db.session.execute('SELECT 1')
+        return 'OK', 200
+    except Exception as e:
+        app.logger.error(f'Health check falhou: {e}')
+        return 'ERRO', 500
 
 # ============================================================================
 # INICIALIZAÇÃO OTIMIZADA
@@ -1111,10 +1857,10 @@ def init_db():
                 nivel_acesso='admin',
                 ativo=True
             )
-            admin.set_password('admin123')
+            admin.set_password('AdminNEV2024')
             db.session.add(admin)
             db.session.commit()
-            app.logger.info('✅ Usuário admin criado (usuário: admin, senha: admin123)')
+            app.logger.info('✅ Usuário admin criado (usuário: admin, senha: AdminNEV2024)')
             app.logger.info('⚠️ ALERTA: Altere a senha do admin no primeiro login!')
 
         # Criar arquivos de cache de CEPs se não existirem
@@ -1153,9 +1899,15 @@ if __name__ == '__main__':
     print("=" * 60)
     print("  Sistema NEV USP - Cadastro de Colaboradores v2.7")
     print("=" * 60)
-    
-    print("Modo:", "DESENVOLVIMENTO" if app.config['DEBUG'] else "PRODUÇÃO")
-    print("Banco de dados:", app.config['SQLALCHEMY_DATABASE_URI'])
+
+    if IS_PYTHONANYWHERE:
+        print(f"  Ambiente: PythonAnywhere")
+        print(f"  Base dir: {BASE_DIR}")
+    else:
+        print("  Ambiente: Desenvolvimento Local")
+        print("  Admin: admin / AdminNEV2024")
+        print("  Acesse: http://localhost:5000")
+
     print("=" * 60)
 
     app.run(debug=app.config['DEBUG'], host='0.0.0.0', port=5000)
