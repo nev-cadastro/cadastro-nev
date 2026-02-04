@@ -1883,30 +1883,33 @@ def init_db():
 
         app.logger.info('✅ Banco de dados inicializado com sucesso!')
 
-
 # ============================================================================
-# CONFIGURAÇÃO PARA RAILWAY
+# CONFIGURAÇÃO PARA PRODUÇÃO
 # ============================================================================
 if __name__ == '__main__':
-    # Configurar logging
-    if not app.debug:
-        handler = RotatingFileHandler('nev_app.log', maxBytes=20000, backupCount=5)
-        handler.setLevel(logging.WARNING)
-        app.logger.addHandler(handler)
-
     # Inicializar banco de dados
     init_db()
-
+    
     print("=" * 60)
     print("  Sistema NEV USP - Cadastro de Colaboradores v2.7")
     print("=" * 60)
-    print("Modo:", "DESENVOLVIMENTO" if app.config['DEBUG'] else "PRODUÇÃO")
-    print("Banco de dados:", app.config['SQLALCHEMY_DATABASE_URI'])
-    print("=" * 60)
-
-    # Para Railway, use a porta da variável de ambiente
+    
+    # Para Railway/Render, use PORT da variável de ambiente
     port = int(os.environ.get("PORT", 5000))
-    app.run(debug=app.config['DEBUG'], host='0.0.0.0', port=port)
+    
+    print(f"🚀 Servidor iniciando na porta {port}")
+    print(f"📊 Banco: {app.config['SQLALCHEMY_DATABASE_URI'][:50]}...")
+    print("=" * 60)
+    
+    # Modo desenvolvimento vs produção
+    debug_mode = app.config['DEBUG']
+    
+    if debug_mode:
+        # Modo desenvolvimento
+        app.run(debug=True, host='0.0.0.0', port=port)
+    else:
+        # Modo produção
+        app.run(host='0.0.0.0', port=port)
 
 # ============================================================================
 # EXECUÇÃO PRINCIPAL
