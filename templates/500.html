@@ -1,33 +1,60 @@
 {% extends "base.html" %}
 
-{% block title %}Erro interno - Sistema NEV USP{% endblock %}
+{% block title %}Erro 500 - Erro Interno do Servidor{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
+<div class="container mt-5">
     <div class="row justify-content-center">
-        <div class="col-md-6 text-center">
-            <div class="error-page mt-5">
-                <h1 class="display-1 text-muted">500</h1>
-                <h2 class="h4 mb-3">Erro interno do servidor</h2>
-                <p class="text-muted mb-4">
-                    Ocorreu um erro interno no servidor. Por favor, tente novamente mais tarde.
-                </p>
-                <div class="mb-4">
-                    <a href="{{ url_for('dashboard') }}" class="btn btn-primary me-2">
-                        <i class="fas fa-home me-2"></i>Dashboard
-                    </a>
-                    <button onclick="window.history.back()" class="btn btn-outline-secondary">
-                        <i class="fas fa-arrow-left me-2"></i>Voltar
-                    </button>
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Erro 500 - Erro Interno do Servidor
+                    </h4>
                 </div>
-                {% if app.debug and error %}
-                <div class="alert alert-danger text-start mt-4">
-                    <small>
-                        <strong>Detalhes do erro (DEBUG):</strong><br>
-                        {{ error }}
-                    </small>
+                <div class="card-body">
+                    <div class="text-center mb-4">
+                        <i class="fas fa-server fa-4x text-danger mb-3"></i>
+                        <h2>Ocorreu um erro interno no servidor</h2>
+                        <p class="lead">
+                            Desculpe, algo deu errado. Nossa equipe foi notificada.
+                        </p>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <h5 class="alert-heading">
+                            <i class="fas fa-info-circle me-2"></i>
+                            O que fazer?
+                        </h5>
+                        <ul class="mb-0">
+                            <li>Tente recarregar a página</li>
+                            <li>Volte à <a href="{{ url_for('dashboard') }}">página inicial</a></li>
+                            <li>Se o erro persistir, entre em contato com o administrador</li>
+                        </ul>
+                    </div>
+                    
+                    {% if config.get('DEBUG') and error %}
+                    <div class="mt-4">
+                        <h5><i class="fas fa-bug me-2"></i>Detalhes do Erro (Modo Desenvolvimento):</h5>
+                        <div class="bg-dark text-light p-3 rounded">
+                            <pre class="mb-0"><code>{{ error }}</code></pre>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="text-center mt-4">
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-primary me-2">
+                            <i class="fas fa-home me-1"></i> Página Inicial
+                        </a>
+                        <a href="javascript:history.back()" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left me-1"></i> Voltar
+                        </a>
+                    </div>
                 </div>
-                {% endif %}
+                <div class="card-footer text-muted text-center">
+                    Sistema NEV USP &copy; {{ now().year if now is defined else "2024" }}
+                </div>
             </div>
         </div>
     </div>
