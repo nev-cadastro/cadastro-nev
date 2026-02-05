@@ -1,15 +1,15 @@
 {
-  "$schema": "https://railway.com/railway.schema.json",
-  "construir": {
-    "construtor": "DOCKERFILE",
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "DOCKERFILE",
     "dockerfilePath": "Dockerfile"
   },
-  "implantar": {
-    "tempo de execução": "V2",
+  "deploy": {
+    "runtime": "V2",
     "numReplicas": 1,
     "startCommand": "gunicorn main:app --bind 0.0.0.0:$PORT",
-    "sleepApplication": falso,
-    "useLegacyStacker": falso,
+    "sleepApplication": false,
+    "useLegacyStacker": false,
     "multiRegionConfig": {
       "europe-west4-drams3a": {
         "numReplicas": 1
