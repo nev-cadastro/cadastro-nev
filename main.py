@@ -1845,44 +1845,55 @@ def health_check():
 def init_db():
     """Inicialização otimizada do banco de dados"""
     with app.app_context():
-        db.create_all()
-        app.logger.info('Tabelas criadas/verificadas com sucesso!')
-
-        admin = User.query.filter_by(username='admin').first()
-        if not admin:
-            admin = User(
-                username='admin',
-                nome_completo='Administrador NEV',
-                email='admin@nev.usp.br',
-                nivel_acesso='admin',
-                ativo=True
-            )
-            admin.set_password('AdminNEV2024')
-            db.session.add(admin)
-            db.session.commit()
-            app.logger.info('✅ Usuário admin criado (usuário: admin, senha: AdminNEV2024)')
-            app.logger.info('⚠️ ALERTA: Altere a senha do admin no primeiro login!')
-
-        # Criar arquivos de cache de CEPs se não existirem
-        if not os.path.exists(os.path.join(DATA_DIR, 'ceps_cache.json')):
-            with open(os.path.join(DATA_DIR, 'ceps_cache.json'), 'w', encoding='utf-8') as f:
-                json.dump({}, f, ensure_ascii=False, indent=2)
-
-        if not os.path.exists(os.path.join(DATA_DIR, 'ceps_frequentes.json')):
-            ceps_frequentes = {
-                "05508000": {
-                    "logradouro": "Cidade Universitária",
-                    "bairro": "Butantã",
-                    "cidade": "São Paulo",
-                    "estado": "SP",
-                    "complemento": "USP"
-                }
-            }
-            with open(os.path.join(DATA_DIR, 'ceps_frequentes.json'), 'w', encoding='utf-8') as f:
-                json.dump(ceps_frequentes, f, ensure_ascii=False, indent=2)
-
-        app.logger.info('✅ Banco de dados inicializado com sucesso!')
-
+        try:
+            # Verificar se estamos usando PostgreSQL
+            if 'postgresql' in app.config['SQLALCHEMY_DATABASE_URI']:
+                print("📊 Usando PostgreSQL (Supabase)")
+                
+                # Criar todas as tabelas
+                db.create_all()
+                
+                # Verificar se admin existe
+                admin = User.query.filter_by(username='admin').first()
+                if not admin:
+                    admin = User(
+                        username='admin',
+                        nome_completo='Administrador NEV',
+                        email='admin@nev.usp.br',
+                        nivel_acesso='admin',
+                        ativo=True
+                    )
+                    admin.set_password('AdminNEV2024')
+                    db.session.add(admin)
+                    db.session.commit()
+                    print('✅ Usuário admin criado')
+                
+                app.logger.info('✅ Banco PostgreSQL inicializado!')
+            else:
+                # SQLite local (desenvolvimento)
+                print("📊 Usando SQLite local")
+                db.create_all()
+                
+                admin = User.query.filter_by(username='admin').first()
+                if not admin:
+                    admin = User(
+                        username='admin',
+                        nome_completo='Administrador NEV',
+                        email='admin@nev.usp.br',
+                        nivel_acesso='admin',
+                        ativo=True
+                    )
+                    admin.set_password('AdminNEV2024')
+                    db.session.add(admin)
+                    db.session.commit()
+                    print('✅ Usuário admin criado (SQLite)')
+                
+                app.logger.info('✅ Banco SQLite inicializado!')
+                
+        except Exception as e:
+            app.logger.error(f'❌ Erro ao inicializar banco: {e}')
+            print(f'❌ ERRO CRÍTICO: {e}')
+            # Não levantar exceção para não quebrar o app
 # ============================================================================
 # CONFIGURAÇÃO PARA PRODUÇÃO
 # ============================================================================
