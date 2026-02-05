@@ -1842,6 +1842,38 @@ def health_check():
 # ============================================================================
 # INICIALIZAÇÃO OTIMIZADA
 # ============================================================================
+@app.route('/init-db')
+def init_database():
+    """Rota para inicializar banco de dados manualmente"""
+    try:
+        with app.app_context():
+            db.create_all()
+            
+            # Criar admin se não existir
+            admin = User.query.filter_by(username='admin').first()
+            if not admin:
+                admin = User(
+                    username='admin',
+                    nome_completo='Administrador NEV',
+                    email='admin@nev.usp.br',
+                    nivel_acesso='admin',
+                    ativo=True
+                )
+                admin.set_password('AdminNEV2024')
+                db.session.add(admin)
+                db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': 'Banco inicializado com sucesso!'
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 def init_db():
     """Inicialização otimizada do banco de dados"""
     with app.app_context():
