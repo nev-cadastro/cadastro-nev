@@ -43,15 +43,9 @@ from sqlalchemy import or_, func, desc
 IS_PYTHONANYWHERE = 'PYTHONANYWHERE_DOMAIN' in os.environ
 
 # Configuração de diretórios
-if IS_PYTHONANYWHERE:
-    username = getpass.getuser()
-    BASE_DIR = f'/home/{username}/mysite'
-    DATA_DIR = os.path.join(BASE_DIR, 'data')
-    os.makedirs(DATA_DIR, exist_ok=True)
-else:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    DATA_DIR = os.path.join(BASE_DIR, 'data')
-    os.makedirs(DATA_DIR, exist_ok=True)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, 'data')
+os.makedirs(DATA_DIR, exist_ok=True)
 
 app = Flask(__name__)
 
@@ -66,48 +60,32 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 # ============================================================================
-# CONFIGURAÇÃO DO BANCO DE DADOS CORRIGIDA
+# CONFIGURAÇÃO DO BANCO DE DADOS PARA RAILWAY/SUPABASE
 # ============================================================================
 
-# Detectar se queremos forçar SQLite local (para desenvolvimento)
-FORCE_SQLITE_LOCAL = False  
+# Obter DATABASE_URL do ambiente (Railway/Supabase)
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
-if FORCE_SQLITE_LOCAL or not IS_PYTHONANYWHERE:
-    # SEMPRE usar SQLite local para desenvolvimento
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    DATA_DIR = os.path.join(BASE_DIR, 'data')
-    os.makedirs(DATA_DIR, exist_ok=True)
+# Se tiver DATABASE_URL, usar PostgreSQL (Railway/Supabase)
+if DATABASE_URL:
+    # Substituir início da URL se for necessário
+    if DATABASE_URL.startswith('postgres://'):
+        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+    
+    app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+        'pool_size': 10,
+        'max_overflow': 20,
+    }
+    print(f"✅ Usando PostgreSQL (Supabase/Railway)")
+    
+# Caso contrário, usar SQLite local (desenvolvimento)
+else:
     db_path = os.path.join(DATA_DIR, 'nev.db')
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path.replace('\\', '/')
     print(f"✅ Usando SQLite local: {db_path}")
-    
-elif IS_PYTHONANYWHERE:
-    # PythonAnywhere (SQLite)
-    username = getpass.getuser()
-    BASE_DIR = f'/home/{username}/mysite'
-    DATA_DIR = os.path.join(BASE_DIR, 'data')
-    os.makedirs(DATA_DIR, exist_ok=True)
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(DATA_DIR, 'nev.db')
-    
-else:
-    # PostgreSQL em produção (apenas se DATABASE_URL existir E não forçamos SQLite)
-    DATABASE_URL = os.environ.get('DATABASE_URL')
-    if DATABASE_URL:
-        app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
-        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-            'pool_pre_ping': True,
-            'pool_recycle': 300,
-            'pool_size': 10,
-            'max_overflow': 20,
-        }
-        print("✅ Usando PostgreSQL (Supabase/Railway)")
-    else:
-        # Fallback para SQLite se não tiver DATABASE_URL
-        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-        DATA_DIR = os.path.join(BASE_DIR, 'data')
-        os.makedirs(DATA_DIR, exist_ok=True)
-        db_path = os.path.join(DATA_DIR, 'nev.db')
-        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path.replace('\\', '/')
 
 app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'static/uploads')
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -1703,7 +1681,7 @@ def criar_backup():
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
             # 1. Código fonte
             codigo_files = [
-                'app.py',
+                'main.py',
                 'requirements.txt',
                 'README.md'  # se existir
             ]
@@ -1742,7 +1720,7 @@ def criar_backup():
             Diretório: {BASE_DIR}
 
             Conteúdo incluído:
-            - Código fonte principal (app.py)
+            - Código fonte principal (main.py)
             - Templates HTML
             - Arquivos de configuração
             - Dados de cache (CEPs)
@@ -1750,7 +1728,7 @@ def criar_backup():
             Para restaurar:
             1. Extraia o conteúdo
             2. Execute: pip install -r requirements.txt
-            3. Execute: python app.py
+            3. Execute: python main.py
             """
 
             zipf.writestr('README.txt', info)
@@ -1840,8 +1818,44 @@ def health_check():
         return 'ERRO', 500
 
 # ============================================================================
-# INICIALIZAÇÃO OTIMIZADA
+# ROTAS DE INICIALIZAÇÃO DO BANCO
 # ============================================================================
+@app.route('/setup')
+def setup_database():
+    """Rota para configurar banco de dados manualmente"""
+    try:
+        with app.app_context():
+            # Criar todas as tabelas
+            db.create_all()
+            
+            # Criar admin se não existir
+            admin = User.query.filter_by(username='admin').first()
+            if not admin:
+                admin = User(
+                    username='admin',
+                    nome_completo='Administrador NEV',
+                    email='admin@nev.usp.br',
+                    nivel_acesso='admin',
+                    ativo=True
+                )
+                admin.set_password('AdminNEV2024')
+                db.session.add(admin)
+                db.session.commit()
+            
+            return """
+            <h1>✅ Banco de dados configurado com sucesso!</h1>
+            <p>Tabelas criadas e usuário admin configurado.</p>
+            <p>Login: <strong>admin</strong></p>
+            <p>Senha: <strong>AdminNEV2024</strong></p>
+            <a href="/login">Ir para login</a>
+            """
+    except Exception as e:
+        return f"""
+        <h1>❌ Erro na configuração</h1>
+        <p>Erro: {str(e)}</p>
+        <p>Verifique a DATABASE_URL no Railway.</p>
+        """
+
 @app.route('/init-db')
 def init_database():
     """Rota para inicializar banco de dados manualmente"""
@@ -1873,7 +1887,42 @@ def init_database():
             'error': str(e)
         }), 500
 
+@app.route('/test-db')
+def test_database():
+    """Testar conexão com banco de dados"""
+    try:
+        from sqlalchemy import text
+        
+        with app.app_context():
+            # Testar conexão
+            result = db.session.execute(text("SELECT version();"))
+            version = result.scalar()
+            
+            # Verificar tabelas
+            result = db.session.execute(text("""
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public'
+                ORDER BY table_name;
+            """))
+            tables = [row[0] for row in result]
+            
+            return f"""
+            <h1>✅ Conexão bem sucedida!</h1>
+            <p><strong>Banco:</strong> {app.config['SQLALCHEMY_DATABASE_URI'][:50]}...</p>
+            <p><strong>PostgreSQL Version:</strong> {version}</p>
+            <p><strong>Tabelas existentes:</strong> {', '.join(tables) or 'Nenhuma'}</p>
+            """
+    except Exception as e:
+        return f"""
+        <h1>❌ Erro de conexão</h1>
+        <p><strong>Erro:</strong> {str(e)}</p>
+        <p><strong>DATABASE_URL configurada:</strong> {app.config.get('SQLALCHEMY_DATABASE_URI', 'Não configurada')}</p>
+        """
 
+# ============================================================================
+# INICIALIZAÇÃO OTIMIZADA
+# ============================================================================
 def init_db():
     """Inicialização otimizada do banco de dados"""
     with app.app_context():
@@ -1926,10 +1975,17 @@ def init_db():
             app.logger.error(f'❌ Erro ao inicializar banco: {e}')
             print(f'❌ ERRO CRÍTICO: {e}')
             # Não levantar exceção para não quebrar o app
+
 # ============================================================================
 # CONFIGURAÇÃO PARA PRODUÇÃO
 # ============================================================================
 if __name__ == '__main__':
+    # Configurar logging
+    if not app.debug:
+        handler = RotatingFileHandler('nev_app.log', maxBytes=20000, backupCount=5)
+        handler.setLevel(logging.WARNING)
+        app.logger.addHandler(handler)
+
     # Inicializar banco de dados
     init_db()
     
