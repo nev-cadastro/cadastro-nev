@@ -27,4 +27,4 @@ RUN mkdir -p data static/uploads
 EXPOSE 5000
 
 # Comando para rodar
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:$PORT", "main:app"]

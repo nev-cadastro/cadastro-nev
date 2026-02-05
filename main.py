@@ -70,7 +70,7 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 # ============================================================================
 
 # Detectar se queremos forçar SQLite local (para desenvolvimento)
-FORCE_SQLITE_LOCAL = False  # ← MUDE PARA False quando for para produção
+FORCE_SQLITE_LOCAL = False  
 
 if FORCE_SQLITE_LOCAL or not IS_PYTHONANYWHERE:
     # SEMPRE usar SQLite local para desenvolvimento
@@ -1902,7 +1902,7 @@ if __name__ == '__main__':
     print("=" * 60)
     
     # Modo desenvolvimento vs produção
-    debug_mode = app.config['DEBUG']
+    debug_mode = app.config.get('DEBUG', False)
     
     if debug_mode:
         # Modo desenvolvimento
@@ -1910,32 +1910,3 @@ if __name__ == '__main__':
     else:
         # Modo produção
         app.run(host='0.0.0.0', port=port)
-
-# ============================================================================
-# EXECUÇÃO PRINCIPAL
-# ============================================================================
-if __name__ == '__main__':
-    # Configurar logging
-    if not app.debug:
-        handler = RotatingFileHandler('nev_app.log', maxBytes=20000, backupCount=5)
-        handler.setLevel(logging.WARNING)
-        app.logger.addHandler(handler)
-
-    # Inicializar banco de dados
-    init_db()
-
-    print("=" * 60)
-    print("  Sistema NEV USP - Cadastro de Colaboradores v2.7")
-    print("=" * 60)
-
-    if IS_PYTHONANYWHERE:
-        print(f"  Ambiente: PythonAnywhere")
-        print(f"  Base dir: {BASE_DIR}")
-    else:
-        print("  Ambiente: Desenvolvimento Local")
-        print("  Admin: admin / AdminNEV2024")
-        print("  Acesse: http://localhost:5000")
-
-    print("=" * 60)
-
-    app.run(debug=app.config['DEBUG'], host='0.0.0.0', port=5000)
