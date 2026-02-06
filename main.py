@@ -172,14 +172,134 @@ def registrar_log(acao: str, modulo: Optional[str] = None,
         db.session.rollback()
         return False
 
-def calcular_idade(data_nascimento: Optional[date]) -> Optional[int]:
-    """Cálculo eficiente de idade (mantida por compatibilidade)"""
-    if not data_nascimento:
+# ============================================================================
+# FUNÇÕES PARA MANIPULAÇÃO DE FOTOS
+# ============================================================================
+def allowed_file(filename):
+    """Verifica se o arquivo é uma imagem permitida"""
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def compress_image(image_path, max_size=(800, 800), quality=85):
+    """Comprime imagem para tamanho otimizado"""
+    from PIL import Image
+    import os
+    
+    try:
+        img = Image.open(image_path)
+        
+        # Redimensiona mantendo proporção
+        img.thumbnail(max_size, Image.Resampling.LANCZOS)
+        
+        # Converte para RGB se for RGBA
+        if img.mode in ('RGBA', 'P'):
+            img = img.convert('RGB')
+        
+        # Salva com compressão
+        img.save(image_path, 'JPEG', quality=quality, optimize=True)
+        
+        return True
+    except Exception as e:
+        app.logger.error(f'Erro ao comprimir imagem {image_path}: {e}')
+        return False
+
+def generate_thumbnail(image_path, thumb_size=(150, 150)):
+    """Gera uma miniatura da imagem"""
+    from PIL import Image
+    import os
+    
+    try:
+        # Cria nome para miniatura
+        base, ext = os.path.splitext(image_path)
+        thumb_path = f"{base}_thumb{ext}"
+        
+        img = Image.open(image_path)
+        
+        # Cria miniatura quadrada com corte central
+        width, height = img.size
+        
+        # Calcula corte central quadrado
+        min_dim = min(width, height)
+        left = (width - min_dim) // 2
+        top = (height - min_dim) // 2
+        right = left + min_dim
+        bottom = top + min_dim
+        
+        img_cropped = img.crop((left, top, right, bottom))
+        img_cropped.thumbnail(thumb_size, Image.Resampling.LANCZOS)
+        
+        # Salva miniatura
+        img_cropped.save(thumb_path, 'JPEG', quality=80, optimize=True)
+        
+        return thumb_path
+    except Exception as e:
+        app.logger.error(f'Erro ao gerar miniatura {image_path}: {e}')
         return None
-    hoje = date.today()
-    return hoje.year - data_nascimento.year - (
-        (hoje.month, hoje.day) < (data_nascimento.month, data_nascimento.day)
-    )
+
+def save_profile_photo(file, colaborador_id, user_name):
+    """Salva foto de perfil com nome único"""
+    import uuid
+    import os
+    
+    if not file or not allowed_file(file.filename):
+        return None, None
+    
+    # Cria diretório para fotos se não existir
+    foto_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'profile_photos')
+    os.makedirs(foto_dir, exist_ok=True)
+    
+    # Gera nome único para o arquivo
+    file_ext = file.filename.rsplit('.', 1)[1].lower()
+    unique_filename = f"{colaborador_id}_{user_name}_{uuid.uuid4().hex[:8]}.{file_ext}"
+    
+    # Caminho completo
+    file_path = os.path.join(foto_dir, unique_filename)
+    
+    try:
+        # Salva arquivo original
+        file.save(file_path)
+        
+        # Comprime a imagem
+        compress_image(file_path, max_size=(800, 800), quality=85)
+        
+        # Gera miniatura
+        thumb_path = generate_thumbnail(file_path)
+        
+        if thumb_path:
+            thumb_filename = os.path.basename(thumb_path)
+        else:
+            thumb_filename = None
+        
+        return os.path.basename(file_path), thumb_filename
+    
+    except Exception as e:
+        app.logger.error(f'Erro ao salvar foto: {e}')
+        # Remove arquivo se houve erro
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        return None, None
+
+def delete_profile_photos(filename, thumb_filename):
+    """Remove foto e miniatura"""
+    import os
+    
+    foto_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'profile_photos')
+    
+    try:
+        if filename:
+            foto_path = os.path.join(foto_dir, filename)
+            if os.path.exists(foto_path):
+                os.remove(foto_path)
+        
+        if thumb_filename:
+            thumb_path = os.path.join(foto_dir, thumb_filename)
+            if os.path.exists(thumb_path):
+                os.remove(thumb_path)
+        
+        return True
+    except Exception as e:
+        app.logger.error(f'Erro ao remover fotos: {e}')
+        return False
 
 # ============================================================================
 # DECORATORS OTIMIZADOS (do v2.6)
@@ -255,6 +375,12 @@ class Colaborador(db.Model):
     bairro = db.Column(db.String(50))
     cidade = db.Column(db.String(50))
     estado = db.Column(db.String(2))
+    estado = db.Column(db.String(2))
+    
+    # NOVO: Foto do perfil
+    foto_perfil = db.Column(db.String(255))  # Caminho do arquivo da foto
+    foto_perfil_miniatura = db.Column(db.String(255))  # Miniatura para listagens
+    foto_data_upload = db.Column(db.DateTime)  # Data do upload
 
     # Dados profissionais
     data_ingresso = db.Column(db.Date, nullable=False)
@@ -967,6 +1093,134 @@ def editar_colaborador(id):
 
     return render_template('colaborador_edit.html', colaborador=colaborador)
 
+# ============================================================================
+# FUNÇÕES PARA MANIPULAÇÃO DE FOTOS
+# ============================================================================
+def allowed_file(filename):
+    """Verifica se o arquivo é uma imagem permitida"""
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def compress_image(image_path, max_size=(800, 800), quality=85):
+    """Comprime imagem para tamanho otimizado"""
+    from PIL import Image
+    import os
+    
+    try:
+        img = Image.open(image_path)
+        
+        # Redimensiona mantendo proporção
+        img.thumbnail(max_size, Image.Resampling.LANCZOS)
+        
+        # Converte para RGB se for RGBA
+        if img.mode in ('RGBA', 'P'):
+            img = img.convert('RGB')
+        
+        # Salva com compressão
+        img.save(image_path, 'JPEG', quality=quality, optimize=True)
+        
+        return True
+    except Exception as e:
+        app.logger.error(f'Erro ao comprimir imagem {image_path}: {e}')
+        return False
+
+def generate_thumbnail(image_path, thumb_size=(150, 150)):
+    """Gera uma miniatura da imagem"""
+    from PIL import Image
+    import os
+    
+    try:
+        # Cria nome para miniatura
+        base, ext = os.path.splitext(image_path)
+        thumb_path = f"{base}_thumb{ext}"
+        
+        img = Image.open(image_path)
+        
+        # Cria miniatura quadrada com corte central
+        width, height = img.size
+        
+        # Calcula corte central quadrado
+        min_dim = min(width, height)
+        left = (width - min_dim) // 2
+        top = (height - min_dim) // 2
+        right = left + min_dim
+        bottom = top + min_dim
+        
+        img_cropped = img.crop((left, top, right, bottom))
+        img_cropped.thumbnail(thumb_size, Image.Resampling.LANCZOS)
+        
+        # Salva miniatura
+        img_cropped.save(thumb_path, 'JPEG', quality=80, optimize=True)
+        
+        return thumb_path
+    except Exception as e:
+        app.logger.error(f'Erro ao gerar miniatura {image_path}: {e}')
+        return None
+
+def save_profile_photo(file, colaborador_id, user_name):
+    """Salva foto de perfil com nome único"""
+    import uuid
+    import os
+    
+    if not file or not allowed_file(file.filename):
+        return None, None
+    
+    # Cria diretório para fotos se não existir
+    foto_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'profile_photos')
+    os.makedirs(foto_dir, exist_ok=True)
+    
+    # Gera nome único para o arquivo
+    file_ext = file.filename.rsplit('.', 1)[1].lower()
+    unique_filename = f"{colaborador_id}_{user_name}_{uuid.uuid4().hex[:8]}.{file_ext}"
+    
+    # Caminho completo
+    file_path = os.path.join(foto_dir, unique_filename)
+    
+    try:
+        # Salva arquivo original
+        file.save(file_path)
+        
+        # Comprime a imagem
+        compress_image(file_path, max_size=(800, 800), quality=85)
+        
+        # Gera miniatura
+        thumb_path = generate_thumbnail(file_path)
+        
+        if thumb_path:
+            thumb_filename = os.path.basename(thumb_path)
+        else:
+            thumb_filename = None
+        
+        return os.path.basename(file_path), thumb_filename
+    
+    except Exception as e:
+        app.logger.error(f'Erro ao salvar foto: {e}')
+        # Remove arquivo se houve erro
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        return None, None
+
+def delete_profile_photos(filename, thumb_filename):
+    """Remove foto e miniatura"""
+    import os
+    
+    foto_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'profile_photos')
+    
+    try:
+        if filename:
+            foto_path = os.path.join(foto_dir, filename)
+            if os.path.exists(foto_path):
+                os.remove(foto_path)
+        
+        if thumb_filename:
+            thumb_path = os.path.join(foto_dir, thumb_filename)
+            if os.path.exists(thumb_path):
+                os.remove(thumb_path)
+        
+        return True
+    except Exception as e:
+        app.logger.error(f'Erro ao remover fotos: {e}')
+        return False
 @app.route('/colaborador/<int:id>/excluir', methods=['POST'])
 @login_required
 @admin_required
@@ -1457,7 +1711,20 @@ def meu_perfil():
                          page_title='Meu Perfil',
                          page_subtitle='Gerencie suas informações pessoais')
 
-# ============================================================================
+@app.route('/uploads/profile_photos/<filename>')
+def serve_profile_photo(filename):
+    """Serve fotos de perfil com cache headers"""
+    from flask import send_from_directory
+    
+    foto_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'profile_photos')
+    
+    response = send_from_directory(foto_dir, filename)
+    
+    # Cache por 1 dia (86400 segundos)
+    response.headers['Cache-Control'] = 'public, max-age=86400'
+    
+    return response
+        # ============================================================================
 # ROTAS DE ERRO SIMPLIFICADAS (mantidas)
 # ============================================================================
 @app.errorhandler(404)
