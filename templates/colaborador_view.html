@@ -175,9 +175,21 @@
     <div class="col-lg-4">
         <div class="card border-0 shadow-sm mb-4 text-center">
             <div class="card-body py-4">
-                <div class="avatar-lg bg-light rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+                <!-- Foto do Perfil -->
+                {% if colaborador.foto_perfil %}
+                <div class="mb-3">
+                    <img src="{{ url_for('serve_profile_photo', filename=colaborador.foto_perfil) }}" 
+                         alt="{{ colaborador.nome_completo }}"
+                         class="rounded-circle border"
+                         style="width: 120px; height: 120px; object-fit: cover;">
+                </div>
+                {% else %}
+                <div class="avatar-lg bg-light rounded-circle d-inline-flex align-items-center justify-content-center mb-3" 
+                     style="width: 120px; height: 120px;">
                     <i class="bi bi-person text-secondary fs-1"></i>
                 </div>
+                {% endif %}
+                
                 <h5 class="fw-bold mb-1">{{ colaborador.nome_completo }}</h5>
                 <p class="text-muted small mb-3">ID do Sistema: #{{ colaborador.id }}</p>
 
@@ -200,6 +212,36 @@
                     </span>
                 </div>
                 {% endif %}
+                
+                <!-- Formulário para upload/remoção de foto -->
+                <div class="mt-4 pt-3 border-top">
+                    <form action="{{ url_for('upload_foto_colaborador', id=colaborador.id) }}" 
+                          method="POST" 
+                          enctype="multipart/form-data"
+                          class="mb-3">
+                        <div class="input-group input-group-sm">
+                            <input type="file" 
+                                   class="form-control form-control-sm" 
+                                   name="foto_perfil" 
+                                   accept="image/*"
+                                   required>
+                            <button class="btn btn-primary btn-sm" type="submit">
+                                <i class="bi bi-upload"></i>
+                            </button>
+                        </div>
+                        <small class="text-muted d-block mt-1">JPG, PNG ou GIF (max 5MB)</small>
+                    </form>
+                    
+                    {% if colaborador.foto_perfil %}
+                    <form action="{{ url_for('remover_foto_colaborador', id=colaborador.id) }}" 
+                          method="POST"
+                          onsubmit="return confirm('Remover foto de perfil?')">
+                        <button class="btn btn-outline-danger btn-sm" type="submit">
+                            <i class="bi bi-trash me-1"></i> Remover Foto
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
             </div>
         </div>
 
