@@ -79,7 +79,9 @@
                                 <div class="form-check mb-2">
                                     <input type="checkbox" id="whatsapp" name="whatsapp" class="form-check-input"
                                            {% if colaborador.whatsapp %}checked{% endif %}>
-                                    <label for="whatsapp" class="form-check-label">Número possui WhatsApp</label>
+                                    <label for="whatsapp" class="form-check-label">
+                                        <i class="fab fa-whatsapp text-success me-1"></i> Número possui WhatsApp
+                                    </label>
                                 </div>
                             </div>
                         </div>
@@ -113,13 +115,9 @@
                                 <input type="date" id="data_ingresso" name="data_ingresso" class="form-control"
                                        value="{{ colaborador.data_ingresso.strftime('%Y-%m-%d') if colaborador.data_ingresso else '' }}" required>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-12">
                                 <label for="departamento" class="form-label fw-medium">Linha de Pesquisa/Departamento</label>
                                 <input type="text" id="departamento" name="departamento" class="form-control" value="{{ colaborador.departamento or '' }}">
-                            </div>
-                            <div class="col-md-6">
-                                <label for="lotacao" class="form-label fw-medium">Lotação</label>
-                                <input type="text" id="lotacao" name="lotacao" class="form-control" value="{{ colaborador.lotacao or '' }}">
                             </div>
                             <div class="col-12">
                                 <label class="form-label fw-medium d-block mb-3">Dias de Trabalho Presencial</label>
@@ -203,10 +201,6 @@
                                 <div class="mb-3">
                                     <label for="assuntos_especializacao" class="form-label fw-medium">Temas de Especialidade</label>
                                     <textarea id="assuntos_especializacao" name="assuntos_especializacao" class="form-control" rows="3" placeholder="Liste, de forma breve, os temas de estudo nos quais você se sente confortável para falar com a imprensa. Dê preferência ao uso de palavras-chave.">{{ colaborador.assuntos_especializacao or '' }}</textarea>
-                                </div>
-                                <div>
-                                    <label for="disponibilidade_contato" class="form-label fw-medium">Melhores horários/Observações para imprensa</label>
-                                    <textarea id="disponibilidade_contato" name="disponibilidade_contato" class="form-control" rows="2">{{ colaborador.disponibilidade_contato or '' }}</textarea>
                                 </div>
                             </div>
                         </div>
@@ -408,6 +402,12 @@
     #cep:disabled {
         background-color: #f8f9fa;
         cursor: not-allowed;
+    }
+    
+    /* Estilo para ícone do WhatsApp no checkbox */
+    .form-check-label .fa-whatsapp {
+        font-size: 1.1em;
+        vertical-align: middle;
     }
 </style>
 {% endblock %}

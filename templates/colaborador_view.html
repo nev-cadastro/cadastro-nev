@@ -44,11 +44,6 @@
                         <label class="small text-uppercase fw-bold text-muted d-block">Nascimento</label>
                         <p class="fs-6">
                             {{ colaborador.data_nascimento.strftime('%d/%m/%Y') if colaborador.data_nascimento else '---' }}
-                            {% if colaborador.data_nascimento %}
-                                <span class="badge bg-light text-dark fw-normal border ms-1">
-                                    {{ calcular_idade(colaborador.data_nascimento) }} anos
-                                </span>
-                            {% endif %}
                         </p>
                     </div>
                     <div class="col-sm-6">
@@ -91,10 +86,6 @@
                         <p class="fs-6">{{ colaborador.departamento or '---' }}</p>
                     </div>
                     <div class="col-sm-6">
-                        <label class="small text-uppercase fw-bold text-muted d-block">Lotação</label>
-                        <p class="fs-6">{{ colaborador.lotacao or '---' }}</p>
-                    </div>
-                    <div class="col-sm-6">
                         <label class="small text-uppercase fw-bold text-muted d-block">Status</label>
                         {% if colaborador.status == 'Ativo' %}
                             <span class="badge bg-success-subtle text-success border border-success border-opacity-25 px-3 py-1 rounded-pill">Ativo</span>
@@ -132,20 +123,6 @@
                         <p class="fs-6">{{ colaborador.assuntos_especializacao }}</p>
                     </div>
                     {% endif %}
-                    
-                    {% if colaborador.disponibilidade_contato %}
-                    <div class="col-12">
-                        <label class="small text-uppercase fw-bold text-muted d-block">Disponibilidade para Contato</label>
-                        <p class="fs-6">{{ colaborador.disponibilidade_contato }}</p>
-                    </div>
-                    {% endif %}
-                    
-                    {% if colaborador.observacoes_imprensa %}
-                    <div class="col-12">
-                        <label class="small text-uppercase fw-bold text-muted d-block">Observações para Imprensa</label>
-                        <p class="fs-6">{{ colaborador.observacoes_imprensa }}</p>
-                    </div>
-                    {% endif %}
                 </div>
             </div>
         </div>
@@ -179,9 +156,9 @@
                                 </form>
                             </div>
                         </div>
-                        <div class="obs-text">{{ obs.texto }}</div>
-                        <div class="obs-footer">
-                            <i class="bi bi-person-circle"></i> Inserido por: <strong>{{ obs.usuario_nome }}</strong>
+                        <div class="obs-text bg-light p-3 rounded mb-2">{{ obs.texto }}</div>
+                        <div class="obs-footer small text-muted">
+                            <i class="bi bi-person-circle me-1"></i> Inserido por: <span class="text-dark">{{ obs.usuario_nome }}</span>
                         </div>
                     </div>
                     {% else %}
@@ -248,4 +225,66 @@
         {% endif %}
     </div>
 </div>
+
+<style>
+.observation-item {
+    border-left: 3px solid var(--nev-primary);
+    padding-left: 15px;
+    margin-bottom: 20px;
+    position: relative;
+}
+
+.observation-item:before {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 0;
+    width: 13px;
+    height: 13px;
+    background: var(--nev-primary);
+    border-radius: 50%;
+}
+
+.obs-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.obs-number {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--nev-primary);
+    background: rgba(30, 64, 175, 0.1);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.obs-date {
+    font-size: 0.75rem;
+    color: #6c757d;
+}
+
+.obs-text {
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: #212529;
+    margin-bottom: 5px;
+}
+
+.obs-footer {
+    font-size: 0.75rem;
+    color: #6c757d;
+}
+
+.btn-delete-obs {
+    font-size: 0.85rem;
+    opacity: 0.7;
+}
+
+.btn-delete-obs:hover {
+    opacity: 1;
+}
+</style>
 {% endblock %}

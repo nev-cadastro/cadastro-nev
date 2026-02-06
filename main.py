@@ -1,8 +1,8 @@
 """
 Sistema NEV USP - Cadastro de Colaboradores
-Versão 2.7 (Unified Stability) - Integração v2.2 + v2.6
+Versão 2.8 (Com alterações solicitadas)
 Autor: NEV USP
-Versão: 2.7 (Corrigido e Otimizado - 2026)
+Versão: 2.8 (Corrigido e Otimizado - 2026)
 """
 
 # ============================================================================
@@ -173,169 +173,13 @@ def registrar_log(acao: str, modulo: Optional[str] = None,
         return False
 
 def calcular_idade(data_nascimento: Optional[date]) -> Optional[int]:
-    """Cálculo eficiente de idade"""
+    """Cálculo eficiente de idade (mantida por compatibilidade)"""
     if not data_nascimento:
         return None
     hoje = date.today()
     return hoje.year - data_nascimento.year - (
         (hoje.month, hoje.day) < (data_nascimento.month, data_nascimento.day)
     )
-
-# ============================================================================
-# SISTEMA DE CACHE DE CEP (PARA PYTHONANYWHERE)
-# ============================================================================
-def carregar_cache_ceps():
-    """Carrega o cache de CEPs do arquivo JSON"""
-    cache_file = os.path.join(DATA_DIR, 'ceps_cache.json')
-    ceps_frequentes_file = os.path.join(DATA_DIR, 'ceps_frequentes.json')
-
-    cache = {}
-    ceps_frequentes = {}
-
-    try:
-        if os.path.exists(cache_file):
-            with open(cache_file, 'r', encoding='utf-8') as f:
-                cache = json.load(f)
-    except Exception as e:
-        app.logger.warning(f'Erro ao carregar cache de CEPs: {e}')
-
-    try:
-        if os.path.exists(ceps_frequentes_file):
-            with open(ceps_frequentes_file, 'r', encoding='utf-8') as f:
-                ceps_frequentes = json.load(f)
-    except Exception as e:
-        app.logger.warning(f'Erro ao carregar CEPs frequentes: {e}')
-
-    return cache, ceps_frequentes
-
-def salvar_no_cache(cep_limpo: str, endereco: dict):
-    """Salva um CEP no cache"""
-    try:
-        cache_file = os.path.join(DATA_DIR, 'ceps_cache.json')
-        cache, _ = carregar_cache_ceps()
-
-        cache[cep_limpo] = {
-            'logradouro': endereco.get('logradouro', ''),
-            'bairro': endereco.get('bairro', ''),
-            'cidade': endereco.get('cidade', ''),
-            'estado': endereco.get('estado', ''),
-            'complemento': endereco.get('complemento', ''),
-            'data_cache': datetime.now().strftime('%Y-%m-%d')
-        }
-
-        with open(cache_file, 'w', encoding='utf-8') as f:
-            json.dump(cache, f, ensure_ascii=False, indent=2)
-
-        return True
-    except Exception as e:
-        app.logger.error(f'Erro ao salvar CEP no cache: {e}')
-        return False
-
-def buscar_endereco_por_cep(cep: str) -> dict:
-    """
-    Busca endereço usando cache local e estimativa por faixa de CEP
-    Solução para PythonAnywhere (sem acesso a APIs externas)
-    """
-    try:
-        # Remove caracteres não numéricos
-        cep_limpo = re.sub(r'\D', '', cep)
-
-        if len(cep_limpo) != 8:
-            return None
-
-        # Carregar cache
-        cache, ceps_frequentes = carregar_cache_ceps()
-
-        # 1. Buscar no cache
-        if cep_limpo in cache:
-            dados = cache[cep_limpo]
-            # Verificar se o cache não expirou (90 dias)
-            data_cache_str = dados.get('data_cache', '2000-01-01')
-            try:
-                data_cache = datetime.strptime(data_cache_str, '%Y-%m-%d')
-                if datetime.now() - data_cache < timedelta(days=90):
-                    return {
-                        'cep': f"{cep_limpo[:5]}-{cep_limpo[5:]}",
-                        'logradouro': dados.get('logradouro', ''),
-                        'bairro': dados.get('bairro', ''),
-                        'cidade': dados.get('cidade', ''),
-                        'estado': dados.get('estado', ''),
-                        'complemento': dados.get('complemento', '')
-                    }
-            except ValueError:
-                pass
-
-        # 2. Buscar em CEPs frequentes pré-cadastrados
-        if cep_limpo in ceps_frequentes:
-            dados = ceps_frequentes[cep_limpo]
-            return {
-                'cep': f"{cep_limpo[:5]}-{cep_limpo[5:]}",
-                'logradouro': dados.get('logradouro', ''),
-                'bairro': dados.get('bairro', ''),
-                'cidade': dados.get('cidade', ''),
-                'estado': dados.get('estado', ''),
-                'complemento': dados.get('complemento', '')
-            }
-
-        # 3. Estimar cidade/estado baseado no CEP (faixas principais)
-        cep_num = int(cep_limpo[:5])
-
-        # Faixas aproximadas por região
-        if 1000 <= cep_num <= 5999:  # São Paulo (SP)
-            cidade, estado = 'São Paulo', 'SP'
-        elif 6000 <= cep_num <= 9999:  # Grande SP
-            cidade, estado = 'São Paulo', 'SP'
-        elif 20000 <= cep_num <= 28999:  # Rio de Janeiro (RJ)
-            cidade, estado = 'Rio de Janeiro', 'RJ'
-        elif 30000 <= cep_num <= 39999:  # Minas Gerais (MG)
-            cidade, estado = 'Belo Horizonte', 'MG'
-        elif 40000 <= cep_num <= 48999:  # Bahia (BA)
-            cidade, estado = 'Salvador', 'BA'
-        elif 50000 <= cep_num <= 56999:  # Pernambuco (PE)
-            cidade, estado = 'Recife', 'PE'
-        elif 57000 <= cep_num <= 57999:  # Alagoas (AL)
-            cidade, estado = 'Maceió', 'AL'
-        elif 58000 <= cep_num <= 58999:  # Paraíba (PB)
-            cidade, estado = 'João Pessoa', 'PB'
-        elif 59000 <= cep_num <= 59999:  # Rio Grande do Norte (RN)
-            cidade, estado = 'Natal', 'RN'
-        elif 60000 <= cep_num <= 63999:  # Ceará (CE)
-            cidade, estado = 'Fortaleza', 'CE'
-        elif 64000 <= cep_num <= 64999:  # Piauí (PI)
-            cidade, estado = 'Teresina', 'PI'
-        elif 65000 <= cep_num <= 65999:  # Maranhão (MA)
-            cidade, estado = 'São Luís', 'MA'
-        elif 66000 <= cep_num <= 68899:  # Pará (PA)
-            cidade, estado = 'Belém', 'PA'
-        elif 69000 <= cep_num <= 69299:  # Amazonas (AM)
-            cidade, estado = 'Manaus', 'AM'
-        elif 70000 <= cep_num <= 73699:  # Distrito Federal (DF)
-            cidade, estado = 'Brasília', 'DF'
-        elif 74000 <= cep_num <= 74999:  # Goiás (GO)
-            cidade, estado = 'Goiânia', 'GO'
-        elif 80000 <= cep_num <= 87999:  # Paraná (PR)
-            cidade, estado = 'Curitiba', 'PR'
-        elif 88000 <= cep_num <= 89999:  # Santa Catarina (SC)
-            cidade, estado = 'Florianópolis', 'SC'
-        elif 90000 <= cep_num <= 99999:  # Rio Grande do Sul (RS)
-            cidade, estado = 'Porto Alegre', 'RS'
-        else:
-            cidade, estado = '', ''
-
-        # Retornar estrutura básica
-        return {
-            'cep': f"{cep_limpo[:5]}-{cep_limpo[5:]}",
-            'logradouro': '',
-            'bairro': '',
-            'cidade': cidade,
-            'estado': estado,
-            'complemento': '',
-            'estimado': True
-        }
-
-    except Exception as e:
-        app.logger.error(f'Erro ao buscar CEP {cep}: {e}')
-        return None
 
 # ============================================================================
 # DECORATORS OTIMIZADOS (do v2.6)
@@ -398,16 +242,16 @@ class Colaborador(db.Model):
     cpf = db.Column(db.String(14), unique=True, nullable=False, index=True)
     data_nascimento = db.Column(db.Date)
 
-    # Contato (ATUALIZADO: removido email_pessoal e telefone_comercial)
+    # Contato
     email_institucional = db.Column(db.String(120), nullable=False, index=True)
     celular = db.Column(db.String(20), nullable=False)
     whatsapp = db.Column(db.Boolean, default=False)
 
-    # Endereço
+    # Endereço (ATUALIZADO: adicionado complemento)
     cep = db.Column(db.String(10))
     endereco = db.Column(db.String(200))
     numero = db.Column(db.String(10))
-    complemento = db.Column(db.String(50))
+    complemento = db.Column(db.String(100))  # NOVO CAMPO
     bairro = db.Column(db.String(50))
     cidade = db.Column(db.String(50))
     estado = db.Column(db.String(2))
@@ -416,8 +260,8 @@ class Colaborador(db.Model):
     data_ingresso = db.Column(db.Date, nullable=False)
     tipo_vinculo = db.Column(db.String(50), nullable=False)
     programa_projeto = db.Column(db.String(100))
-    departamento = db.Column(db.String(100))  # RENOMEADO: Linha de Pesquisa/Departamento
-    lotacao = db.Column(db.String(100))
+    departamento = db.Column(db.String(100))  # Linha de Pesquisa/Departamento
+    lotacao = db.Column(db.String(100))  # Mantido no banco, mas não usado nos formulários
 
     # Horários
     dias_presenciais = db.Column(db.String(100))
@@ -429,10 +273,9 @@ class Colaborador(db.Model):
     atende_imprensa = db.Column(db.Boolean, default=False)
     tipos_imprensa = db.Column(db.String(200))  # Tipos de veículos
     assuntos_especializacao = db.Column(db.Text)  # Temas de especialidade
-    disponibilidade_contato = db.Column(db.String(100))
-    observacoes_imprensa = db.Column(db.Text)
+    disponibilidade_contato = db.Column(db.String(100))  # Mantido no banco, mas não usado nos formulários
 
-    # Acadêmico/Profissional (campos do v2.6)
+    # Acadêmico/Profissional
     curriculo_lattes = db.Column(db.String(200))
     orcid = db.Column(db.String(50))
     linkedin = db.Column(db.String(200))
@@ -493,7 +336,7 @@ class Observacao(db.Model):
     colaborador = db.relationship('Colaborador', backref=db.backref('historico_observacoes', lazy=True, cascade="all, delete-orphan"))
 
 # ============================================================================
-# CONTEXT PROCESSOR
+# CONTEXT PROCESSOR (ATUALIZADO)
 # ============================================================================
 @app.context_processor
 def inject_globais():
@@ -504,13 +347,12 @@ def inject_globais():
         'now': datetime.now,
         'current_user': current_user,
         'app_name': 'Sistema NEV USP',
-        'app_version': '2.7',
+        'app_version': '2.8',
         'ano_atual': datetime.now().year,
         'formatar_cpf': formatar_cpf,
         'formatar_telefone': formatar_telefone,
         'validar_cpf': validar_cpf,
-        'calcular_idade': calcular_idade,
-        'buscar_endereco_por_cep': buscar_endereco_por_cep
+        # Removida a função buscar_endereco_por_cep do contexto global
     }
 
 # ============================================================================
@@ -598,72 +440,39 @@ def logout():
     return redirect(url_for('login'))
 
 # ============================================================================
-# ROTA API PARA BUSCAR CEP
+# ROTA API PARA BUSCAR CEP (SIMPLIFICADA)
 # ============================================================================
 @app.route('/api/buscar-cep/<cep>')
 @login_required
 def api_buscar_cep(cep):
-    """API para buscar endereço por CEP (com cache local)"""
-    app.logger.info(f'Buscando CEP: {cep}')
+    """API simplificada para buscar endereço por CEP (apenas formatação)"""
+    app.logger.info(f'Formatando CEP: {cep}')
     try:
-        endereco = buscar_endereco_por_cep(cep)
-        if endereco:
-            # Remover flag 'estimado' se existir
-            estimado = endereco.pop('estimado', False)
-
-            resposta = {
-                'success': True,
-                'endereco': endereco
-            }
-            if estimado:
-                resposta['message'] = 'Cidade/estado estimados pela faixa do CEP'
-
-            app.logger.info(f'CEP {cep} retornado: {endereco}')
-            return jsonify(resposta)
-        else:
-            app.logger.warning(f'CEP {cep} não encontrado')
+        # Remove caracteres não numéricos
+        cep_limpo = re.sub(r'\D', '', cep)
+        
+        if len(cep_limpo) != 8:
             return jsonify({
                 'success': False,
-                'message': 'CEP não encontrado. Preencha os dados manualmente.'
-            }), 404
-
+                'message': 'CEP inválido. Digite 8 dígitos.'
+            }), 400
+        
+        # Formata o CEP apenas (xxxxx-xxx)
+        cep_formatado = f'{cep_limpo[:5]}-{cep_limpo[5:]}'
+        
+        # Retorna apenas o CEP formatado, sem dados de endereço
+        return jsonify({
+            'success': True,
+            'cep': cep_formatado,
+            'message': 'CEP formatado. Preencha os dados de endereço manualmente.'
+        })
+        
     except Exception as e:
-        app.logger.error(f'Erro na API buscar-cep para {cep}: {e}')
+        app.logger.error(f'Erro ao formatar CEP {cep}: {e}')
         return jsonify({
             'success': False,
-            'message': f'Erro ao buscar CEP: {str(e)}'
+            'message': f'Erro ao processar CEP: {str(e)}'
         }), 500
-
-# ============================================================================
-# ROTA PARA SALVAR CEP MANUALMENTE NO CACHE
-# ============================================================================
-@app.route('/api/salvar-cep-cache', methods=['POST'])
-@login_required
-def salvar_cep_cache():
-    """Salva um CEP pesquisado manualmente no cache"""
-    try:
-        data = request.get_json()
-        cep = data.get('cep', '')
-        endereco = data.get('endereco', {})
-
-        if not cep or not endereco:
-            return jsonify({'success': False, 'message': 'Dados incompletos'}), 400
-
-        cep_limpo = re.sub(r'\D', '', cep)
-        if len(cep_limpo) != 8:
-            return jsonify({'success': False, 'message': 'CEP inválido'}), 400
-
-        sucesso = salvar_no_cache(cep_limpo, endereco)
-
-        if sucesso:
-            registrar_log(f'Adicionou CEP {cep} ao cache manualmente', 'CEP')
-            return jsonify({'success': True, 'message': 'CEP salvo no cache!'})
-        else:
-            return jsonify({'success': False, 'message': 'Erro ao salvar CEP'}), 500
-
-    except Exception as e:
-        app.logger.error(f'Erro ao salvar CEP no cache: {e}')
-        return jsonify({'success': False, 'message': str(e)}), 500
 
 # ============================================================================
 # DASHBOARD OTIMIZADO
@@ -707,7 +516,7 @@ def dashboard():
             percentual_ativos=0, percentual_imprensa=0)
 
 # ============================================================================
-# ROTAS DE COLABORADORES OTIMIZADAS
+# ROTAS DE COLABORADORES OTIMIZADAS (ATUALIZADAS)
 # ============================================================================
 @app.route('/colaboradores')
 @login_required
@@ -760,7 +569,7 @@ def listar_colaboradores():
 @login_required
 @admin_required
 def novo_colaborador():
-    """Cadastro de colaborador em 5 passos"""
+    """Cadastro de colaborador em 5 passos (ATUALIZADO)"""
 
     if request.method == 'POST':
         # Se for uma requisição AJAX para salvar temporariamente os dados
@@ -786,6 +595,7 @@ def novo_colaborador():
                     dados['cep'] = request.form.get('cep', '')
                     dados['endereco'] = request.form.get('endereco', '')
                     dados['numero'] = request.form.get('numero', '')
+                    dados['complemento'] = request.form.get('complemento', '')  # NOVO CAMPO
                     dados['bairro'] = request.form.get('bairro', '')
                     dados['cidade'] = request.form.get('cidade', '')
                     dados['estado'] = request.form.get('estado', '')
@@ -793,7 +603,7 @@ def novo_colaborador():
                 elif passo == 3:
                     dados['tipo_vinculo'] = request.form.get('tipo_vinculo', '')
                     dados['departamento'] = request.form.get('departamento', '')
-                    dados['lotacao'] = request.form.get('lotacao', '')
+                    # dados['lotacao'] = request.form.get('lotacao', '')  # REMOVIDO
                     dados['data_ingresso'] = request.form.get('data_ingresso', '')
                     dados['dias_presenciais'] = ','.join(request.form.getlist('dias_presenciais'))
 
@@ -801,7 +611,7 @@ def novo_colaborador():
                     dados['atende_imprensa'] = 'atende_imprensa' in request.form
                     dados['tipos_imprensa'] = ', '.join(request.form.getlist('tipos_imprensa'))
                     dados['assuntos_especializacao'] = request.form.get('assuntos_especializacao', '')
-                    dados['disponibilidade_contato'] = request.form.get('disponibilidade_contato', '')
+                    # dados['disponibilidade_contato'] = request.form.get('disponibilidade_contato', '')  # REMOVIDO
 
                 elif passo == 5:
                     dados['curriculo_lattes'] = request.form.get('curriculo_lattes', '')
@@ -882,11 +692,11 @@ def novo_colaborador():
                         'whatsapp': dados_finais.get('whatsapp', False),
                         'tipo_vinculo': dados_finais.get('tipo_vinculo', ''),
                         'departamento': sanitize_input(dados_finais.get('departamento', '')),
-                        'lotacao': sanitize_input(dados_finais.get('lotacao', '')),
+                        # 'lotacao': sanitize_input(dados_finais.get('lotacao', '')),  # REMOVIDO
                         'atende_imprensa': dados_finais.get('atende_imprensa', False),
                         'tipos_imprensa': dados_finais.get('tipos_imprensa', ''),
                         'assuntos_especializacao': sanitize_input(dados_finais.get('assuntos_especializacao', '')),
-                        'disponibilidade_contato': sanitize_input(dados_finais.get('disponibilidade_contato', '')),
+                        # 'disponibilidade_contato': sanitize_input(dados_finais.get('disponibilidade_contato', '')),  # REMOVIDO
                         'curriculo_lattes': sanitize_input(dados_finais.get('curriculo_lattes', '')),
                         'orcid': sanitize_input(dados_finais.get('orcid', '')),
                         'linkedin': sanitize_input(dados_finais.get('linkedin', '')),
@@ -918,11 +728,12 @@ def novo_colaborador():
                     if dias_presenciais:
                         dados_db['dias_presenciais'] = dias_presenciais
 
-                    # Endereço
+                    # Endereço (com complemento)
                     dados_db.update({
                         'cep': sanitize_input(dados_finais.get('cep', '')),
                         'endereco': sanitize_input(dados_finais.get('endereco', '')),
                         'numero': sanitize_input(dados_finais.get('numero', '')),
+                        'complemento': sanitize_input(dados_finais.get('complemento', '')),  # NOVO CAMPO
                         'bairro': sanitize_input(dados_finais.get('bairro', '')),
                         'cidade': sanitize_input(dados_finais.get('cidade', '')),
                         'estado': sanitize_input(dados_finais.get('estado', '')),
@@ -983,11 +794,11 @@ def novo_colaborador():
                 'whatsapp': 'whatsapp' in request.form,
                 'tipo_vinculo': vinculo,
                 'departamento': sanitize_input(request.form.get('departamento', '')),
-                'lotacao': sanitize_input(request.form.get('lotacao', '')),
+                # 'lotacao': sanitize_input(request.form.get('lotacao', '')),  # REMOVIDO
                 'atende_imprensa': 'atende_imprensa' in request.form,
                 'tipos_imprensa': ', '.join(request.form.getlist('tipos_imprensa')),
                 'assuntos_especializacao': sanitize_input(request.form.get('assuntos_especializacao', '')),
-                'disponibilidade_contato': sanitize_input(request.form.get('disponibilidade_contato', '')),
+                # 'disponibilidade_contato': sanitize_input(request.form.get('disponibilidade_contato', '')),  # REMOVIDO
                 'curriculo_lattes': sanitize_input(request.form.get('curriculo_lattes', '')),
                 'orcid': sanitize_input(request.form.get('orcid', '')),
                 'linkedin': sanitize_input(request.form.get('linkedin', '')),
@@ -1020,11 +831,12 @@ def novo_colaborador():
             if dias_presenciais:
                 dados['dias_presenciais'] = ','.join(dias_presenciais)
 
-            # Endereço
+            # Endereço (com complemento)
             dados.update({
                 'cep': sanitize_input(request.form.get('cep', '')),
                 'endereco': sanitize_input(request.form.get('endereco', '')),
                 'numero': sanitize_input(request.form.get('numero', '')),
+                'complemento': sanitize_input(request.form.get('complemento', '')),  # NOVO CAMPO
                 'bairro': sanitize_input(request.form.get('bairro', '')),
                 'cidade': sanitize_input(request.form.get('cidade', '')),
                 'estado': sanitize_input(request.form.get('estado', '')),
@@ -1038,7 +850,6 @@ def novo_colaborador():
             registrar_log(f'Cadastrou colaborador {colaborador.nome_completo}',
                           'Colaboradores',
                           f'Matrícula: {colaborador.matricula}')
-
             flash(f'✅ Colaborador {colaborador.nome_completo} cadastrado! Matrícula: {colaborador.matricula}', 'success')
             return redirect(url_for('ver_colaborador', id=colaborador.id))
 
@@ -1108,7 +919,7 @@ def editar_colaborador(id):
 
             colaborador.tipo_vinculo = request.form.get('tipo_vinculo')
             colaborador.departamento = sanitize_input(request.form.get('departamento', ''))
-            colaborador.lotacao = sanitize_input(request.form.get('lotacao', ''))
+            # colaborador.lotacao = sanitize_input(request.form.get('lotacao', ''))  # REMOVIDO
 
             # Dias presenciais
             dias_presenciais = request.form.getlist('dias_presenciais')
@@ -1120,7 +931,7 @@ def editar_colaborador(id):
             colaborador.atende_imprensa = 'atende_imprensa' in request.form
             colaborador.tipos_imprensa = ', '.join(request.form.getlist('tipos_imprensa'))
             colaborador.assuntos_especializacao = sanitize_input(request.form.get('assuntos_especializacao', ''))
-            colaborador.disponibilidade_contato = sanitize_input(request.form.get('disponibilidade_contato', ''))
+            # colaborador.disponibilidade_contato = sanitize_input(request.form.get('disponibilidade_contato', ''))  # REMOVIDO
 
             # Campos acadêmicos
             colaborador.curriculo_lattes = sanitize_input(request.form.get('curriculo_lattes', ''))
@@ -1135,6 +946,7 @@ def editar_colaborador(id):
             colaborador.cep = sanitize_input(request.form.get('cep', ''))
             colaborador.endereco = sanitize_input(request.form.get('endereco', ''))
             colaborador.numero = sanitize_input(request.form.get('numero', ''))
+            colaborador.complemento = sanitize_input(request.form.get('complemento', ''))  # NOVO CAMPO
             colaborador.bairro = sanitize_input(request.form.get('bairro', ''))
             colaborador.cidade = sanitize_input(request.form.get('cidade', ''))
             colaborador.estado = sanitize_input(request.form.get('estado', ''))
@@ -1715,7 +1527,7 @@ def criar_backup():
             info = f"""
             Backup do Sistema NEV USP
             Data: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-            Versão: 2.7
+            Versão: 2.8
             Usuário: {current_user.username}
             Diretório: {BASE_DIR}
 
@@ -1990,7 +1802,7 @@ if __name__ == '__main__':
     init_db()
     
     print("=" * 60)
-    print("  Sistema NEV USP - Cadastro de Colaboradores v2.7")
+    print("  Sistema NEV USP - Cadastro de Colaboradores v2.8")
     print("=" * 60)
     
     # Para Railway/Render, use PORT da variável de ambiente

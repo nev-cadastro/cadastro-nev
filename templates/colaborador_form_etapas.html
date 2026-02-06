@@ -123,7 +123,7 @@
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="whatsapp" name="whatsapp">
                                         <label class="form-check-label" for="whatsapp">
-                                            Este número tem WhatsApp
+                                            <i class="fab fa-whatsapp text-success me-1"></i> Este número tem WhatsApp
                                         </label>
                                     </div>
                                 </div>
@@ -150,23 +150,28 @@
                             </div>
                             
                             <div class="row">
-                                <div class="col-md-3 mb-3">
+                                <div class="col-md-2 mb-3">
                                     <label for="numero" class="form-label">Número</label>
                                     <input type="text" class="form-control" id="numero" name="numero">
                                 </div>
                                 
-                                <div class="col-md-5 mb-3">
-                                    <label for="bairro" class="form-label">Bairro</label>
-                                    <input type="text" class="form-control" id="bairro" name="bairro">
+                                <div class="col-md-6 mb-3">
+                                    <label for="complemento" class="form-label">Complemento</label>
+                                    <input type="text" class="form-control" id="complemento" name="complemento">
                                 </div>
                                 
                                 <div class="col-md-4 mb-3">
-                                    <label for="cidade" class="form-label">Cidade</label>
-                                    <input type="text" class="form-control" id="cidade" name="cidade">
+                                    <label for="bairro" class="form-label">Bairro</label>
+                                    <input type="text" class="form-control" id="bairro" name="bairro">
                                 </div>
                             </div>
                             
                             <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="cidade" class="form-label">Cidade</label>
+                                    <input type="text" class="form-control" id="cidade" name="cidade">
+                                </div>
+                                
                                 <div class="col-md-3 mb-3">
                                     <label for="estado" class="form-label">Estado</label>
                                     <select class="form-select" id="estado" name="estado">
@@ -232,14 +237,9 @@
                             </div>
                             
                             <div class="row">
-                                <div class="col-md-6 mb-3">
+                                <div class="col-md-12 mb-3">
                                     <label for="departamento" class="form-label">Linha de Pesquisa/Departamento</label>
                                     <input type="text" class="form-control" id="departamento" name="departamento">
-                                </div>
-                                
-                                <div class="col-md-6 mb-3">
-                                    <label for="lotacao" class="form-label">Lotação</label>
-                                    <input type="text" class="form-control" id="lotacao" name="lotacao">
                                 </div>
                             </div>
                             
@@ -291,56 +291,44 @@
                                 </div>
                             </div>
                             
-                            <div class="row mb-3">
-                                <div class="col-12">
-                                    <label class="form-label">Tipos de Veículos de Imprensa (se atende)</label>
-                                    <div class="d-flex flex-wrap gap-3">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="tipo_jornal" name="tipos_imprensa" value="Jornal">
-                                            <label class="form-check-label" for="tipo_jornal">Jornal</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="tipo_revista" name="tipos_imprensa" value="Revista">
-                                            <label class="form-check-label" for="tipo_revista">Revista</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="tipo_tv" name="tipos_imprensa" value="TV">
-                                            <label class="form-check-label" for="tipo_tv">TV</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="tipo_radio" name="tipos_imprensa" value="Rádio">
-                                            <label class="form-check-label" for="tipo_radio">Rádio</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="tipo_portal" name="tipos_imprensa" value="Portal Online">
-                                            <label class="form-check-label" for="tipo_portal">Portal Online</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="tipo_blog" name="tipos_imprensa" value="Blog">
-                                            <label class="form-check-label" for="tipo_blog">Blog</label>
+                            <div id="campos-imprensa-detalhes" style="display: none;">
+                                <div class="row mb-3">
+                                    <div class="col-12">
+                                        <label class="form-label">Tipos de Veículos de Imprensa (se atende)</label>
+                                        <div class="d-flex flex-wrap gap-3">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="tipo_jornal" name="tipos_imprensa" value="Jornal">
+                                                <label class="form-check-label" for="tipo_jornal">Jornal</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="tipo_revista" name="tipos_imprensa" value="Revista">
+                                                <label class="form-check-label" for="tipo_revista">Revista</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="tipo_tv" name="tipos_imprensa" value="TV">
+                                                <label class="form-check-label" for="tipo_tv">TV</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="tipo_radio" name="tipos_imprensa" value="Rádio">
+                                                <label class="form-check-label" for="tipo_radio">Rádio</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="tipo_portal" name="tipos_imprensa" value="Portal Online">
+                                                <label class="form-check-label" for="tipo_portal">Portal Online</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="tipo_blog" name="tipos_imprensa" value="Blog">
+                                                <label class="form-check-label" for="tipo_blog">Blog</label>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                            
-                            <div class="row mb-3">
-                                <div class="col-12">
-                                    <label for="assuntos_especializacao" class="form-label">Temas de Especialidade/Assuntos para entrevista</label>
-                                    <textarea class="form-control" id="assuntos_especializacao" name="assuntos_especializacao" rows="3"></textarea>
-                                </div>
-                            </div>
-                            
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label for="disponibilidade_contato" class="form-label">Disponibilidade para Contato</label>
-                                    <select class="form-select" id="disponibilidade_contato" name="disponibilidade_contato">
-                                        <option value="">Selecione...</option>
-                                        <option value="Segunda a Sexta, 9h-18h">Segunda a Sexta, 9h-18h</option>
-                                        <option value="Somente com agendamento">Somente com agendamento</option>
-                                        <option value="Por email">Por email</option>
-                                        <option value="Por telefone">Por telefone</option>
-                                        <option value="Qualquer horário">Qualquer horário</option>
-                                    </select>
+                                
+                                <div class="row mb-3">
+                                    <div class="col-12">
+                                        <label for="assuntos_especializacao" class="form-label">Temas de Especialidade/Assuntos para entrevista</label>
+                                        <textarea class="form-control" id="assuntos_especializacao" name="assuntos_especializacao" rows="3" placeholder="Listar, de forma breve, os temas nos quais se sente confortável para falar com a imprensa, de preferência com o uso de palavras-chave"></textarea>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -490,6 +478,12 @@
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* Estilo para ícone do WhatsApp no checkbox */
+.form-check-label .fa-whatsapp {
+    font-size: 1.1em;
+    vertical-align: middle;
+}
 </style>
 {% endblock %}
 
@@ -621,6 +615,11 @@ $(document).ready(function() {
                 if (response.success) {
                     currentStep++;
                     updateStepView();
+                    
+                    // Se for o passo 4, configurar toggle dos campos de imprensa
+                    if (currentStep === 4) {
+                        setupImprensaToggle();
+                    }
                 }
             }).fail(function(xhr) {
                 if (xhr.responseJSON && xhr.responseJSON.message) {
@@ -636,6 +635,11 @@ $(document).ready(function() {
     $('#btnVoltar').click(function() {
         currentStep--;
         updateStepView();
+        
+        // Se for o passo 4, configurar toggle dos campos de imprensa
+        if (currentStep === 4) {
+            setupImprensaToggle();
+        }
     });
     
     // Evento: Finalizar cadastro
@@ -684,6 +688,20 @@ $(document).ready(function() {
         }
     });
     
+    // Função para configurar toggle dos campos de imprensa
+    function setupImprensaToggle() {
+        const $checkbox = $('#atende_imprensa');
+        const $camposDetalhes = $('#campos-imprensa-detalhes');
+        
+        // Mostrar/ocultar campos baseado no estado inicial
+        $camposDetalhes.toggle($checkbox.is(':checked'));
+        
+        // Configurar evento de change
+        $checkbox.off('change').on('change', function() {
+            $camposDetalhes.toggle($(this).is(':checked'));
+        });
+    }
+    
     // Evento: Buscar CEP
     $('#btnBuscarCEP').click(function() {
         const cep = $('#cep').val().replace(/\D/g, '');
@@ -695,6 +713,7 @@ $(document).ready(function() {
                     $('#bairro').val(data.endereco.bairro || '');
                     $('#cidade').val(data.endereco.cidade || '');
                     $('#estado').val(data.endereco.estado || '');
+                    $('#complemento').val(data.endereco.complemento || '');
                     
                     if (data.message) {
                         showAlert('info', data.message);
