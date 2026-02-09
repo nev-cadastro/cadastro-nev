@@ -1786,10 +1786,25 @@ def setup_database():
     """Rota para configurar banco de dados manualmente"""
     try:
         with app.app_context():
-            # Criar todas as tabelas
-            db.create_all()
+            # NÃO recria tudo do zero - apenas verifica e adiciona o necessário
             
-            # Criar admin se não existir
+            from sqlalchemy import inspect
+            inspector = inspect(db.engine)
+            existing_tables = inspector.get_table_names()
+            
+            resultado = []
+            
+            # Verificar tabelas necessárias
+            tabelas_necessarias = ['usuarios', 'colaboradores', 'logs_sistema', 'observacoes_colaborador']
+            tabelas_faltantes = [t for t in tabelas_necessarias if t not in existing_tables]
+            
+            if tabelas_faltantes:
+                db.create_all()
+                resultado.append(f"✅ Criadas tabelas faltantes: {', '.join(tabelas_faltantes)}")
+            else:
+                resultado.append("✅ Todas as tabelas já existem")
+            
+            # Verificar se admin existe
             admin = User.query.filter_by(username='admin').first()
             if not admin:
                 admin = User(
@@ -1802,10 +1817,42 @@ def setup_database():
                 admin.set_password('AdminNEV2024')
                 db.session.add(admin)
                 db.session.commit()
+                resultado.append("✅ Usuário admin criado")
+            else:
+                resultado.append("✅ Usuário admin já existe")
             
-            return """
-            <h1>✅ Banco de dados configurado com sucesso!</h1>
-            <p>Tabelas criadas e usuário admin configurado.</p>
+            # Adicionar campos faltantes de forma segura
+            try:
+                colaboradores_columns = [col['name'] for col in inspector.get_columns('colaboradores')]
+                
+                if 'complemento' not in colaboradores_columns:
+                    db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN complemento VARCHAR(100)"))
+                    resultado.append("✅ Adicionado campo 'complemento'")
+                
+                if 'foto_perfil' not in colaboradores_columns:
+                    db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN foto_perfil VARCHAR(255)"))
+                    resultado.append("✅ Adicionado campo 'foto_perfil'")
+                
+                if 'foto_perfil_miniatura' not in colaboradores_columns:
+                    db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN foto_perfil_miniatura VARCHAR(255)"))
+                    resultado.append("✅ Adicionado campo 'foto_perfil_miniatura'")
+                
+                if 'foto_data_upload' not in colaboradores_columns:
+                    db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN foto_data_upload TIMESTAMP"))
+                    resultado.append("✅ Adicionado campo 'foto_data_upload'")
+                
+            except Exception as e:
+                resultado.append(f"⚠️ Erro ao adicionar campos: {e}")
+            
+            db.session.commit()
+            
+            return f"""
+            <h1>✅ Configuração Segura Concluída!</h1>
+            <p><strong>DADOS PRESERVADOS!</strong></p>
+            <p>Resultados:</p>
+            <ul>
+                <li>{'<br>'.join(resultado)}</li>
+            </ul>
             <p>Login: <strong>admin</strong></p>
             <p>Senha: <strong>AdminNEV2024</strong></p>
             <a href="/login">Ir para login</a>
@@ -1814,7 +1861,7 @@ def setup_database():
         return f"""
         <h1>❌ Erro na configuração</h1>
         <p>Erro: {str(e)}</p>
-        <p>Verifique a DATABASE_URL no Railway.</p>
+        <a href="/">Voltar</a>
         """
 
 @app.route('/init-db')
@@ -1922,8 +1969,22 @@ def init_db():
             if 'postgresql' in app.config['SQLALCHEMY_DATABASE_URI']:
                 print("📊 Usando PostgreSQL (Supabase)")
                 
-                # Criar todas as tabelas
-                db.create_all()
+                # IMPORTANTE: NÃO use db.create_all() aqui automaticamente
+                # Verificar se as tabelas já existem primeiro
+                from sqlalchemy import inspect
+                inspector = inspect(db.engine)
+                existing_tables = inspector.get_table_names()
+                
+                tabelas_necessarias = ['usuarios', 'colaboradores', 'logs_sistema', 'observacoes_colaborador']
+                
+                # Verificar quais tabelas faltam
+                tabelas_faltantes = [t for t in tabelas_necessarias if t not in existing_tables]
+                
+                if tabelas_faltantes:
+                    print(f"📝 Criando tabelas faltantes: {tabelas_faltantes}")
+                    db.create_all()  # Só cria se faltar tabelas
+                else:
+                    print("✅ Todas as tabelas já existem")
                 
                 # Verificar se admin existe
                 admin = User.query.filter_by(username='admin').first()
@@ -1939,6 +2000,8 @@ def init_db():
                     db.session.add(admin)
                     db.session.commit()
                     print('✅ Usuário admin criado')
+                else:
+                    print('✅ Usuário admin já existe')
                 
                 app.logger.info('✅ Banco PostgreSQL inicializado!')
             else:
@@ -1959,10 +2022,12 @@ def init_db():
                     db.session.add(admin)
                     db.session.commit()
                     print('✅ Usuário admin criado (SQLite)')
+                else:
+                    print('✅ Usuário admin já existe (SQLite)')
                 
                 app.logger.info('✅ Banco SQLite inicializado!')
             
-            # Adicionar campos faltantes
+            # Adicionar campos faltantes (seguro)
             adicionar_campos_faltantes()
                 
         except Exception as e:
@@ -1970,6 +2035,65 @@ def init_db():
             print(f'❌ ERRO CRÍTICO: {e}')
             # Não levantar exceção para não quebrar o app
 
+
+# ============================================================================
+# ROTA PARA MIGRAÇÃO SEGURA (SEM APAGAR DADOS)
+# ============================================================================
+@app.route('/admin/migrate-safe')
+@login_required
+@admin_required
+def migrate_safe():
+    """Migração segura - não apaga dados existentes"""
+    try:
+        # Verificar quais tabelas existem
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        existing_tables = inspector.get_table_names()
+        
+        resultado = []
+        
+        # Verificar e adicionar campos faltantes na tabela colaboradores
+        try:
+            # Verificar se o campo 'complemento' existe
+            colaboradores_columns = [col['name'] for col in inspector.get_columns('colaboradores')]
+            
+            if 'complemento' not in colaboradores_columns:
+                db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN complemento VARCHAR(100)"))
+                resultado.append("✅ Adicionado campo 'complemento'")
+            
+            if 'foto_perfil' not in colaboradores_columns:
+                db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN foto_perfil VARCHAR(255)"))
+                resultado.append("✅ Adicionado campo 'foto_perfil'")
+            
+            if 'foto_perfil_miniatura' not in colaboradores_columns:
+                db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN foto_perfil_miniatura VARCHAR(255)"))
+                resultado.append("✅ Adicionado campo 'foto_perfil_miniatura'")
+            
+            if 'foto_data_upload' not in colaboradores_columns:
+                db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN foto_data_upload TIMESTAMP"))
+                resultado.append("✅ Adicionado campo 'foto_data_upload'")
+            
+        except Exception as e:
+            resultado.append(f"⚠️ Erro em colaboradores: {e}")
+        
+        db.session.commit()
+        
+        return f"""
+        <h1>✅ Migração Segura Concluída!</h1>
+        <p>Os seguintes passos foram executados:</p>
+        <ul>
+            <li>{'<br>'.join(resultado) if resultado else 'Nenhuma alteração necessária'}</li>
+        </ul>
+        <p>✅ <strong>DADOS PRESERVADOS!</strong> Nenhuma tabela foi apagada.</p>
+        <a href="/dashboard">Voltar ao Dashboard</a>
+        """
+        
+    except Exception as e:
+        return f"""
+        <h1>❌ Erro na Migração</h1>
+        <p>Erro: {str(e)}</p>
+        <a href="/dashboard">Voltar ao Dashboard</a>
+        """
 # ============================================================================
 # CONFIGURAÇÃO PARA PRODUÇÃO
 # ============================================================================
