@@ -375,7 +375,6 @@ class Colaborador(db.Model):
     bairro = db.Column(db.String(50))
     cidade = db.Column(db.String(50))
     estado = db.Column(db.String(2))
-    estado = db.Column(db.String(2))
     
     # NOVO: Foto do perfil
     foto_perfil = db.Column(db.String(255))  # Caminho do arquivo da foto
@@ -418,9 +417,19 @@ class Colaborador(db.Model):
     cadastrado_por_usuario = db.relationship('User', foreign_keys=[cadastrado_por])
     atualizado_por_usuario = db.relationship('User', foreign_keys=[atualizado_por])
 
+    def calcular_idade(self) -> Optional[int]:
+        """Calcula a idade a partir da data de nascimento"""
+        if self.data_nascimento:
+            hoje = date.today()
+            idade = hoje.year - self.data_nascimento.year - (
+                (hoje.month, hoje.day) < (self.data_nascimento.month, self.data_nascimento.day)
+            )
+            return idade
+        return None
+
     @property
     def idade(self) -> Optional[int]:
-        return calcular_idade(self.data_nascimento)
+        return self.calcular_idade()
 
     @property
     def tempo_na_instituicao(self) -> Optional[int]:
@@ -1093,134 +1102,6 @@ def editar_colaborador(id):
 
     return render_template('colaborador_edit.html', colaborador=colaborador)
 
-# ============================================================================
-# FUNÇÕES PARA MANIPULAÇÃO DE FOTOS
-# ============================================================================
-def allowed_file(filename):
-    """Verifica se o arquivo é uma imagem permitida"""
-    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def compress_image(image_path, max_size=(800, 800), quality=85):
-    """Comprime imagem para tamanho otimizado"""
-    from PIL import Image
-    import os
-    
-    try:
-        img = Image.open(image_path)
-        
-        # Redimensiona mantendo proporção
-        img.thumbnail(max_size, Image.Resampling.LANCZOS)
-        
-        # Converte para RGB se for RGBA
-        if img.mode in ('RGBA', 'P'):
-            img = img.convert('RGB')
-        
-        # Salva com compressão
-        img.save(image_path, 'JPEG', quality=quality, optimize=True)
-        
-        return True
-    except Exception as e:
-        app.logger.error(f'Erro ao comprimir imagem {image_path}: {e}')
-        return False
-
-def generate_thumbnail(image_path, thumb_size=(150, 150)):
-    """Gera uma miniatura da imagem"""
-    from PIL import Image
-    import os
-    
-    try:
-        # Cria nome para miniatura
-        base, ext = os.path.splitext(image_path)
-        thumb_path = f"{base}_thumb{ext}"
-        
-        img = Image.open(image_path)
-        
-        # Cria miniatura quadrada com corte central
-        width, height = img.size
-        
-        # Calcula corte central quadrado
-        min_dim = min(width, height)
-        left = (width - min_dim) // 2
-        top = (height - min_dim) // 2
-        right = left + min_dim
-        bottom = top + min_dim
-        
-        img_cropped = img.crop((left, top, right, bottom))
-        img_cropped.thumbnail(thumb_size, Image.Resampling.LANCZOS)
-        
-        # Salva miniatura
-        img_cropped.save(thumb_path, 'JPEG', quality=80, optimize=True)
-        
-        return thumb_path
-    except Exception as e:
-        app.logger.error(f'Erro ao gerar miniatura {image_path}: {e}')
-        return None
-
-def save_profile_photo(file, colaborador_id, user_name):
-    """Salva foto de perfil com nome único"""
-    import uuid
-    import os
-    
-    if not file or not allowed_file(file.filename):
-        return None, None
-    
-    # Cria diretório para fotos se não existir
-    foto_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'profile_photos')
-    os.makedirs(foto_dir, exist_ok=True)
-    
-    # Gera nome único para o arquivo
-    file_ext = file.filename.rsplit('.', 1)[1].lower()
-    unique_filename = f"{colaborador_id}_{user_name}_{uuid.uuid4().hex[:8]}.{file_ext}"
-    
-    # Caminho completo
-    file_path = os.path.join(foto_dir, unique_filename)
-    
-    try:
-        # Salva arquivo original
-        file.save(file_path)
-        
-        # Comprime a imagem
-        compress_image(file_path, max_size=(800, 800), quality=85)
-        
-        # Gera miniatura
-        thumb_path = generate_thumbnail(file_path)
-        
-        if thumb_path:
-            thumb_filename = os.path.basename(thumb_path)
-        else:
-            thumb_filename = None
-        
-        return os.path.basename(file_path), thumb_filename
-    
-    except Exception as e:
-        app.logger.error(f'Erro ao salvar foto: {e}')
-        # Remove arquivo se houve erro
-        if os.path.exists(file_path):
-            os.remove(file_path)
-        return None, None
-
-def delete_profile_photos(filename, thumb_filename):
-    """Remove foto e miniatura"""
-    import os
-    
-    foto_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'profile_photos')
-    
-    try:
-        if filename:
-            foto_path = os.path.join(foto_dir, filename)
-            if os.path.exists(foto_path):
-                os.remove(foto_path)
-        
-        if thumb_filename:
-            thumb_path = os.path.join(foto_dir, thumb_filename)
-            if os.path.exists(thumb_path):
-                os.remove(thumb_path)
-        
-        return True
-    except Exception as e:
-        app.logger.error(f'Erro ao remover fotos: {e}')
-        return False
 @app.route('/colaborador/<int:id>/excluir', methods=['POST'])
 @login_required
 @admin_required
@@ -1724,7 +1605,8 @@ def serve_profile_photo(filename):
     response.headers['Cache-Control'] = 'public, max-age=86400'
     
     return response
-        # ============================================================================
+
+# ============================================================================
 # ROTAS DE ERRO SIMPLIFICADAS (mantidas)
 # ============================================================================
 @app.errorhandler(404)
@@ -2000,6 +1882,36 @@ def test_database():
         """
 
 # ============================================================================
+# MIGRAÇÃO SIMPLES - ADICIONA CAMPOS FALTANTES
+# ============================================================================
+def adicionar_campos_faltantes():
+    """Adiciona campos que faltam na tabela colaboradores"""
+    with app.app_context():
+        try:
+            # Lista de SQLs para executar
+            sql_commands = [
+                "ALTER TABLE colaboradores ADD COLUMN IF NOT EXISTS complemento VARCHAR(100)",
+                "ALTER TABLE colaboradores ADD COLUMN IF NOT EXISTS foto_perfil VARCHAR(255)",
+                "ALTER TABLE colaboradores ADD COLUMN IF NOT EXISTS foto_perfil_miniatura VARCHAR(255)",
+                "ALTER TABLE colaboradores ADD COLUMN IF NOT EXISTS foto_data_upload TIMESTAMP"
+            ]
+            
+            print("🔧 Adicionando campos ao banco de dados...")
+            
+            for sql in sql_commands:
+                try:
+                    db.session.execute(db.text(sql))
+                    print(f"   ✅ {sql[:50]}...")
+                except Exception as e:
+                    print(f"   ⚠️  {e}")
+            
+            db.session.commit()
+            print("🎉 Campos adicionados com sucesso!")
+            
+        except Exception as e:
+            print(f"❌ Erro: {e}")
+
+# ============================================================================
 # INICIALIZAÇÃO OTIMIZADA
 # ============================================================================
 def init_db():
@@ -2049,42 +1961,15 @@ def init_db():
                     print('✅ Usuário admin criado (SQLite)')
                 
                 app.logger.info('✅ Banco SQLite inicializado!')
-		adicionar_campos_faltantes()
+            
+            # Adicionar campos faltantes
+            adicionar_campos_faltantes()
                 
         except Exception as e:
             app.logger.error(f'❌ Erro ao inicializar banco: {e}')
             print(f'❌ ERRO CRÍTICO: {e}')
             # Não levantar exceção para não quebrar o app
 
-# ============================================================================
-# MIGRAÇÃO SIMPLES - ADICIONA CAMPOS FALTANTES
-# ============================================================================
-def adicionar_campos_faltantes():
-    """Adiciona campos que faltam na tabela colaboradores"""
-    with app.app_context():
-        try:
-            # Lista de SQLs para executar
-            sql_commands = [
-                "ALTER TABLE colaboradores ADD COLUMN IF NOT EXISTS complemento VARCHAR(100)",
-                "ALTER TABLE colaboradores ADD COLUMN IF NOT EXISTS foto_perfil VARCHAR(255)",
-                "ALTER TABLE colaboradores ADD COLUMN IF NOT EXISTS foto_perfil_miniatura VARCHAR(255)",
-                "ALTER TABLE colaboradores ADD COLUMN IF NOT EXISTS foto_data_upload TIMESTAMP"
-            ]
-            
-            print("🔧 Adicionando campos ao banco de dados...")
-            
-            for sql in sql_commands:
-                try:
-                    db.session.execute(db.text(sql))
-                    print(f"   ✅ {sql[:50]}...")
-                except Exception as e:
-                    print(f"   ⚠️  {e}")
-            
-            db.session.commit()
-            print("🎉 Campos adicionados com sucesso!")
-            
-        except Exception as e:
-            print(f"❌ Erro: {e}")
 # ============================================================================
 # CONFIGURAÇÃO PARA PRODUÇÃO
 # ============================================================================
