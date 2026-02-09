@@ -375,7 +375,6 @@ class Colaborador(db.Model):
     bairro = db.Column(db.String(50))
     cidade = db.Column(db.String(50))
     estado = db.Column(db.String(2))
-    estado = db.Column(db.String(2))
     
     # NOVO: Foto do perfil
     foto_perfil = db.Column(db.String(255))  # Caminho do arquivo da foto
@@ -418,9 +417,19 @@ class Colaborador(db.Model):
     cadastrado_por_usuario = db.relationship('User', foreign_keys=[cadastrado_por])
     atualizado_por_usuario = db.relationship('User', foreign_keys=[atualizado_por])
 
+    def calcular_idade(self) -> Optional[int]:
+        """Calcula a idade a partir da data de nascimento"""
+        if self.data_nascimento:
+            hoje = date.today()
+            idade = hoje.year - self.data_nascimento.year - (
+                (hoje.month, hoje.day) < (self.data_nascimento.month, self.data_nascimento.day)
+            )
+            return idade
+        return None
+
     @property
     def idade(self) -> Optional[int]:
-        return calcular_idade(self.data_nascimento)
+        return self.calcular_idade()
 
     @property
     def tempo_na_instituicao(self) -> Optional[int]:
@@ -1094,133 +1103,131 @@ def editar_colaborador(id):
     return render_template('colaborador_edit.html', colaborador=colaborador)
 
 # ============================================================================
-# FUNÇÕES PARA MANIPULAÇÃO DE FOTOS
+# ROTA PARA UPLOAD DE FOTO DE PERFIL
 # ============================================================================
-def allowed_file(filename):
-    """Verifica se o arquivo é uma imagem permitida"""
-    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def compress_image(image_path, max_size=(800, 800), quality=85):
-    """Comprime imagem para tamanho otimizado"""
-    from PIL import Image
-    import os
+@app.route('/colaborador/<int:id>/upload-foto', methods=['POST'])
+@login_required
+@admin_required
+def upload_foto_colaborador(id):
+    """Upload de foto de perfil para colaborador"""
+    colaborador = Colaborador.query.get_or_404(id)
     
-    try:
-        img = Image.open(image_path)
-        
-        # Redimensiona mantendo proporção
-        img.thumbnail(max_size, Image.Resampling.LANCZOS)
-        
-        # Converte para RGB se for RGBA
-        if img.mode in ('RGBA', 'P'):
-            img = img.convert('RGB')
-        
-        # Salva com compressão
-        img.save(image_path, 'JPEG', quality=quality, optimize=True)
-        
-        return True
-    except Exception as e:
-        app.logger.error(f'Erro ao comprimir imagem {image_path}: {e}')
-        return False
-
-def generate_thumbnail(image_path, thumb_size=(150, 150)):
-    """Gera uma miniatura da imagem"""
-    from PIL import Image
-    import os
+    if 'foto_perfil' not in request.files:
+        flash('Nenhum arquivo selecionado.', 'danger')
+        return redirect(url_for('ver_colaborador', id=id))
     
-    try:
-        # Cria nome para miniatura
-        base, ext = os.path.splitext(image_path)
-        thumb_path = f"{base}_thumb{ext}"
-        
-        img = Image.open(image_path)
-        
-        # Cria miniatura quadrada com corte central
-        width, height = img.size
-        
-        # Calcula corte central quadrado
-        min_dim = min(width, height)
-        left = (width - min_dim) // 2
-        top = (height - min_dim) // 2
-        right = left + min_dim
-        bottom = top + min_dim
-        
-        img_cropped = img.crop((left, top, right, bottom))
-        img_cropped.thumbnail(thumb_size, Image.Resampling.LANCZOS)
-        
-        # Salva miniatura
-        img_cropped.save(thumb_path, 'JPEG', quality=80, optimize=True)
-        
-        return thumb_path
-    except Exception as e:
-        app.logger.error(f'Erro ao gerar miniatura {image_path}: {e}')
-        return None
-
-def save_profile_photo(file, colaborador_id, user_name):
-    """Salva foto de perfil com nome único"""
-    import uuid
-    import os
+    file = request.files['foto_perfil']
     
-    if not file or not allowed_file(file.filename):
-        return None, None
+    # Se o usuário não selecionar arquivo
+    if file.filename == '':
+        flash('Nenhum arquivo selecionado.', 'danger')
+        return redirect(url_for('ver_colaborador', id=id))
     
-    # Cria diretório para fotos se não existir
-    foto_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'profile_photos')
-    os.makedirs(foto_dir, exist_ok=True)
-    
-    # Gera nome único para o arquivo
-    file_ext = file.filename.rsplit('.', 1)[1].lower()
-    unique_filename = f"{colaborador_id}_{user_name}_{uuid.uuid4().hex[:8]}.{file_ext}"
-    
-    # Caminho completo
-    file_path = os.path.join(foto_dir, unique_filename)
-    
-    try:
-        # Salva arquivo original
-        file.save(file_path)
+    # Se houver arquivo e for permitido
+    if file and allowed_file(file.filename):
+        # Remover foto antiga se existir
+        if colaborador.foto_perfil:
+            delete_profile_photos(colaborador.foto_perfil, colaborador.foto_perfil_miniatura)
         
-        # Comprime a imagem
-        compress_image(file_path, max_size=(800, 800), quality=85)
+        # Salvar nova foto
+        foto_filename, thumb_filename = save_profile_photo(
+            file, 
+            colaborador.id, 
+            colaborador.nome_completo.replace(' ', '_')
+        )
         
-        # Gera miniatura
-        thumb_path = generate_thumbnail(file_path)
-        
-        if thumb_path:
-            thumb_filename = os.path.basename(thumb_path)
+        if foto_filename:
+            colaborador.foto_perfil = foto_filename
+            colaborador.foto_perfil_miniatura = thumb_filename
+            colaborador.foto_data_upload = datetime.utcnow()
+            colaborador.atualizado_por = current_user.id
+            colaborador.data_atualizacao = datetime.utcnow()
+            
+            db.session.commit()
+            
+            registrar_log(f'Upload de foto para {colaborador.nome_completo}',
+                         'Colaboradores',
+                         f'ID: {id}, Foto: {foto_filename}')
+            
+            flash('✅ Foto de perfil atualizada com sucesso!', 'success')
         else:
-            thumb_filename = None
-        
-        return os.path.basename(file_path), thumb_filename
+            flash('❌ Erro ao salvar a foto. Tente novamente.', 'danger')
+    else:
+        flash('❌ Formato de arquivo não permitido. Use JPG, PNG, GIF ou WebP.', 'danger')
     
-    except Exception as e:
-        app.logger.error(f'Erro ao salvar foto: {e}')
-        # Remove arquivo se houve erro
-        if os.path.exists(file_path):
-            os.remove(file_path)
-        return None, None
+    return redirect(url_for('ver_colaborador', id=id))
 
-def delete_profile_photos(filename, thumb_filename):
-    """Remove foto e miniatura"""
-    import os
+# ============================================================================
+# ROTA PARA REMOVER FOTO DE PERFIL
+# ============================================================================
+@app.route('/colaborador/<int:id>/remover-foto', methods=['POST'])
+@login_required
+@admin_required
+def remover_foto_colaborador(id):
+    """Remove foto de perfil do colaborador"""
+    colaborador = Colaborador.query.get_or_404(id)
+    
+    if colaborador.foto_perfil:
+        # Remover arquivos físicos
+        delete_profile_photos(colaborador.foto_perfil, colaborador.foto_perfil_miniatura)
+        
+        # Limpar campos no banco
+        colaborador.foto_perfil = None
+        colaborador.foto_perfil_miniatura = None
+        colaborador.foto_data_upload = None
+        colaborador.atualizado_por = current_user.id
+        colaborador.data_atualizacao = datetime.utcnow()
+        
+        db.session.commit()
+        
+        registrar_log(f'Removeu foto de {colaborador.nome_completo}',
+                     'Colaboradores',
+                     f'ID: {id}')
+        
+        flash('✅ Foto de perfil removida com sucesso!', 'success')
+    else:
+        flash('⚠️ Este colaborador não possui foto de perfil.', 'info')
+    
+    return redirect(url_for('ver_colaborador', id=id))
+
+# ============================================================================
+# ROTA PARA EXIBIR FOTO DE PERFIL
+# ============================================================================
+@app.route('/colaborador/<int:id>/foto')
+@login_required
+def ver_foto_colaborador(id):
+    """Exibe foto de perfil do colaborador"""
+    colaborador = Colaborador.query.get_or_404(id)
+    
+    if not colaborador.foto_perfil:
+        # Retorna uma imagem padrão ou 404
+        from flask import abort
+        abort(404)
     
     foto_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'profile_photos')
+    return send_from_directory(foto_dir, colaborador.foto_perfil)
+
+# ============================================================================
+# ROTA PARA EXIBIR MINIATURA DA FOTO
+# ============================================================================
+@app.route('/colaborador/<int:id>/foto/miniatura')
+@login_required
+def ver_foto_miniatura_colaborador(id):
+    """Exibe miniatura da foto de perfil"""
+    colaborador = Colaborador.query.get_or_404(id)
     
-    try:
-        if filename:
-            foto_path = os.path.join(foto_dir, filename)
-            if os.path.exists(foto_path):
-                os.remove(foto_path)
-        
-        if thumb_filename:
-            thumb_path = os.path.join(foto_dir, thumb_filename)
-            if os.path.exists(thumb_path):
-                os.remove(thumb_path)
-        
-        return True
-    except Exception as e:
-        app.logger.error(f'Erro ao remover fotos: {e}')
-        return False
+    if not colaborador.foto_perfil_miniatura:
+        # Retorna a foto original ou uma padrão
+        if colaborador.foto_perfil:
+            foto_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'profile_photos')
+            return send_from_directory(foto_dir, colaborador.foto_perfil)
+        else:
+            from flask import abort
+            abort(404)
+    
+    foto_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'profile_photos')
+    return send_from_directory(foto_dir, colaborador.foto_perfil_miniatura)
+    
 @app.route('/colaborador/<int:id>/excluir', methods=['POST'])
 @login_required
 @admin_required
@@ -1724,7 +1731,8 @@ def serve_profile_photo(filename):
     response.headers['Cache-Control'] = 'public, max-age=86400'
     
     return response
-        # ============================================================================
+
+# ============================================================================
 # ROTAS DE ERRO SIMPLIFICADAS (mantidas)
 # ============================================================================
 @app.errorhandler(404)
@@ -1904,10 +1912,25 @@ def setup_database():
     """Rota para configurar banco de dados manualmente"""
     try:
         with app.app_context():
-            # Criar todas as tabelas
-            db.create_all()
+            # NÃO recria tudo do zero - apenas verifica e adiciona o necessário
             
-            # Criar admin se não existir
+            from sqlalchemy import inspect
+            inspector = inspect(db.engine)
+            existing_tables = inspector.get_table_names()
+            
+            resultado = []
+            
+            # Verificar tabelas necessárias
+            tabelas_necessarias = ['usuarios', 'colaboradores', 'logs_sistema', 'observacoes_colaborador']
+            tabelas_faltantes = [t for t in tabelas_necessarias if t not in existing_tables]
+            
+            if tabelas_faltantes:
+                db.create_all()
+                resultado.append(f"✅ Criadas tabelas faltantes: {', '.join(tabelas_faltantes)}")
+            else:
+                resultado.append("✅ Todas as tabelas já existem")
+            
+            # Verificar se admin existe
             admin = User.query.filter_by(username='admin').first()
             if not admin:
                 admin = User(
@@ -1920,10 +1943,42 @@ def setup_database():
                 admin.set_password('AdminNEV2024')
                 db.session.add(admin)
                 db.session.commit()
+                resultado.append("✅ Usuário admin criado")
+            else:
+                resultado.append("✅ Usuário admin já existe")
             
-            return """
-            <h1>✅ Banco de dados configurado com sucesso!</h1>
-            <p>Tabelas criadas e usuário admin configurado.</p>
+            # Adicionar campos faltantes de forma segura
+            try:
+                colaboradores_columns = [col['name'] for col in inspector.get_columns('colaboradores')]
+                
+                if 'complemento' not in colaboradores_columns:
+                    db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN complemento VARCHAR(100)"))
+                    resultado.append("✅ Adicionado campo 'complemento'")
+                
+                if 'foto_perfil' not in colaboradores_columns:
+                    db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN foto_perfil VARCHAR(255)"))
+                    resultado.append("✅ Adicionado campo 'foto_perfil'")
+                
+                if 'foto_perfil_miniatura' not in colaboradores_columns:
+                    db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN foto_perfil_miniatura VARCHAR(255)"))
+                    resultado.append("✅ Adicionado campo 'foto_perfil_miniatura'")
+                
+                if 'foto_data_upload' not in colaboradores_columns:
+                    db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN foto_data_upload TIMESTAMP"))
+                    resultado.append("✅ Adicionado campo 'foto_data_upload'")
+                
+            except Exception as e:
+                resultado.append(f"⚠️ Erro ao adicionar campos: {e}")
+            
+            db.session.commit()
+            
+            return f"""
+            <h1>✅ Configuração Segura Concluída!</h1>
+            <p><strong>DADOS PRESERVADOS!</strong></p>
+            <p>Resultados:</p>
+            <ul>
+                <li>{'<br>'.join(resultado)}</li>
+            </ul>
             <p>Login: <strong>admin</strong></p>
             <p>Senha: <strong>AdminNEV2024</strong></p>
             <a href="/login">Ir para login</a>
@@ -1932,7 +1987,7 @@ def setup_database():
         return f"""
         <h1>❌ Erro na configuração</h1>
         <p>Erro: {str(e)}</p>
-        <p>Verifique a DATABASE_URL no Railway.</p>
+        <a href="/">Voltar</a>
         """
 
 @app.route('/init-db')
@@ -2000,63 +2055,6 @@ def test_database():
         """
 
 # ============================================================================
-# INICIALIZAÇÃO OTIMIZADA
-# ============================================================================
-def init_db():
-    """Inicialização otimizada do banco de dados"""
-    with app.app_context():
-        try:
-            # Verificar se estamos usando PostgreSQL
-            if 'postgresql' in app.config['SQLALCHEMY_DATABASE_URI']:
-                print("📊 Usando PostgreSQL (Supabase)")
-                
-                # Criar todas as tabelas
-                db.create_all()
-                
-                # Verificar se admin existe
-                admin = User.query.filter_by(username='admin').first()
-                if not admin:
-                    admin = User(
-                        username='admin',
-                        nome_completo='Administrador NEV',
-                        email='admin@nev.usp.br',
-                        nivel_acesso='admin',
-                        ativo=True
-                    )
-                    admin.set_password('AdminNEV2024')
-                    db.session.add(admin)
-                    db.session.commit()
-                    print('✅ Usuário admin criado')
-                
-                app.logger.info('✅ Banco PostgreSQL inicializado!')
-            else:
-                # SQLite local (desenvolvimento)
-                print("📊 Usando SQLite local")
-                db.create_all()
-                
-                admin = User.query.filter_by(username='admin').first()
-                if not admin:
-                    admin = User(
-                        username='admin',
-                        nome_completo='Administrador NEV',
-                        email='admin@nev.usp.br',
-                        nivel_acesso='admin',
-                        ativo=True
-                    )
-                    admin.set_password('AdminNEV2024')
-                    db.session.add(admin)
-                    db.session.commit()
-                    print('✅ Usuário admin criado (SQLite)')
-                
-                app.logger.info('✅ Banco SQLite inicializado!')
-		adicionar_campos_faltantes()
-                
-        except Exception as e:
-            app.logger.error(f'❌ Erro ao inicializar banco: {e}')
-            print(f'❌ ERRO CRÍTICO: {e}')
-            # Não levantar exceção para não quebrar o app
-
-# ============================================================================
 # MIGRAÇÃO SIMPLES - ADICIONA CAMPOS FALTANTES
 # ============================================================================
 def adicionar_campos_faltantes():
@@ -2085,6 +2083,143 @@ def adicionar_campos_faltantes():
             
         except Exception as e:
             print(f"❌ Erro: {e}")
+
+# ============================================================================
+# INICIALIZAÇÃO OTIMIZADA
+# ============================================================================
+def init_db():
+    """Inicialização otimizada do banco de dados"""
+    with app.app_context():
+        try:
+            # Verificar se estamos usando PostgreSQL
+            if 'postgresql' in app.config['SQLALCHEMY_DATABASE_URI']:
+                print("📊 Usando PostgreSQL (Supabase)")
+                
+                # IMPORTANTE: NÃO use db.create_all() aqui automaticamente
+                # Verificar se as tabelas já existem primeiro
+                from sqlalchemy import inspect
+                inspector = inspect(db.engine)
+                existing_tables = inspector.get_table_names()
+                
+                tabelas_necessarias = ['usuarios', 'colaboradores', 'logs_sistema', 'observacoes_colaborador']
+                
+                # Verificar quais tabelas faltam
+                tabelas_faltantes = [t for t in tabelas_necessarias if t not in existing_tables]
+                
+                if tabelas_faltantes:
+                    print(f"📝 Criando tabelas faltantes: {tabelas_faltantes}")
+                    db.create_all()  # Só cria se faltar tabelas
+                else:
+                    print("✅ Todas as tabelas já existem")
+                
+                # Verificar se admin existe
+                admin = User.query.filter_by(username='admin').first()
+                if not admin:
+                    admin = User(
+                        username='admin',
+                        nome_completo='Administrador NEV',
+                        email='admin@nev.usp.br',
+                        nivel_acesso='admin',
+                        ativo=True
+                    )
+                    admin.set_password('AdminNEV2024')
+                    db.session.add(admin)
+                    db.session.commit()
+                    print('✅ Usuário admin criado')
+                else:
+                    print('✅ Usuário admin já existe')
+                
+                app.logger.info('✅ Banco PostgreSQL inicializado!')
+            else:
+                # SQLite local (desenvolvimento)
+                print("📊 Usando SQLite local")
+                db.create_all()
+                
+                admin = User.query.filter_by(username='admin').first()
+                if not admin:
+                    admin = User(
+                        username='admin',
+                        nome_completo='Administrador NEV',
+                        email='admin@nev.usp.br',
+                        nivel_acesso='admin',
+                        ativo=True
+                    )
+                    admin.set_password('AdminNEV2024')
+                    db.session.add(admin)
+                    db.session.commit()
+                    print('✅ Usuário admin criado (SQLite)')
+                else:
+                    print('✅ Usuário admin já existe (SQLite)')
+                
+                app.logger.info('✅ Banco SQLite inicializado!')
+            
+            # Adicionar campos faltantes (seguro)
+            adicionar_campos_faltantes()
+                
+        except Exception as e:
+            app.logger.error(f'❌ Erro ao inicializar banco: {e}')
+            print(f'❌ ERRO CRÍTICO: {e}')
+            # Não levantar exceção para não quebrar o app
+
+
+# ============================================================================
+# ROTA PARA MIGRAÇÃO SEGURA (SEM APAGAR DADOS)
+# ============================================================================
+@app.route('/admin/migrate-safe')
+@login_required
+@admin_required
+def migrate_safe():
+    """Migração segura - não apaga dados existentes"""
+    try:
+        # Verificar quais tabelas existem
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        existing_tables = inspector.get_table_names()
+        
+        resultado = []
+        
+        # Verificar e adicionar campos faltantes na tabela colaboradores
+        try:
+            # Verificar se o campo 'complemento' existe
+            colaboradores_columns = [col['name'] for col in inspector.get_columns('colaboradores')]
+            
+            if 'complemento' not in colaboradores_columns:
+                db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN complemento VARCHAR(100)"))
+                resultado.append("✅ Adicionado campo 'complemento'")
+            
+            if 'foto_perfil' not in colaboradores_columns:
+                db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN foto_perfil VARCHAR(255)"))
+                resultado.append("✅ Adicionado campo 'foto_perfil'")
+            
+            if 'foto_perfil_miniatura' not in colaboradores_columns:
+                db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN foto_perfil_miniatura VARCHAR(255)"))
+                resultado.append("✅ Adicionado campo 'foto_perfil_miniatura'")
+            
+            if 'foto_data_upload' not in colaboradores_columns:
+                db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN foto_data_upload TIMESTAMP"))
+                resultado.append("✅ Adicionado campo 'foto_data_upload'")
+            
+        except Exception as e:
+            resultado.append(f"⚠️ Erro em colaboradores: {e}")
+        
+        db.session.commit()
+        
+        return f"""
+        <h1>✅ Migração Segura Concluída!</h1>
+        <p>Os seguintes passos foram executados:</p>
+        <ul>
+            <li>{'<br>'.join(resultado) if resultado else 'Nenhuma alteração necessária'}</li>
+        </ul>
+        <p>✅ <strong>DADOS PRESERVADOS!</strong> Nenhuma tabela foi apagada.</p>
+        <a href="/dashboard">Voltar ao Dashboard</a>
+        """
+        
+    except Exception as e:
+        return f"""
+        <h1>❌ Erro na Migração</h1>
+        <p>Erro: {str(e)}</p>
+        <a href="/dashboard">Voltar ao Dashboard</a>
+        """
 # ============================================================================
 # CONFIGURAÇÃO PARA PRODUÇÃO
 # ============================================================================

@@ -33,4 +33,7 @@ config.py
 
 # Backup
 *.zip
-backup/
+backup/__pycache__/
+*.pyc
+venv/
+env/
