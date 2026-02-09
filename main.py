@@ -1102,6 +1102,132 @@ def editar_colaborador(id):
 
     return render_template('colaborador_edit.html', colaborador=colaborador)
 
+# ============================================================================
+# ROTA PARA UPLOAD DE FOTO DE PERFIL
+# ============================================================================
+@app.route('/colaborador/<int:id>/upload-foto', methods=['POST'])
+@login_required
+@admin_required
+def upload_foto_colaborador(id):
+    """Upload de foto de perfil para colaborador"""
+    colaborador = Colaborador.query.get_or_404(id)
+    
+    if 'foto_perfil' not in request.files:
+        flash('Nenhum arquivo selecionado.', 'danger')
+        return redirect(url_for('ver_colaborador', id=id))
+    
+    file = request.files['foto_perfil']
+    
+    # Se o usuário não selecionar arquivo
+    if file.filename == '':
+        flash('Nenhum arquivo selecionado.', 'danger')
+        return redirect(url_for('ver_colaborador', id=id))
+    
+    # Se houver arquivo e for permitido
+    if file and allowed_file(file.filename):
+        # Remover foto antiga se existir
+        if colaborador.foto_perfil:
+            delete_profile_photos(colaborador.foto_perfil, colaborador.foto_perfil_miniatura)
+        
+        # Salvar nova foto
+        foto_filename, thumb_filename = save_profile_photo(
+            file, 
+            colaborador.id, 
+            colaborador.nome_completo.replace(' ', '_')
+        )
+        
+        if foto_filename:
+            colaborador.foto_perfil = foto_filename
+            colaborador.foto_perfil_miniatura = thumb_filename
+            colaborador.foto_data_upload = datetime.utcnow()
+            colaborador.atualizado_por = current_user.id
+            colaborador.data_atualizacao = datetime.utcnow()
+            
+            db.session.commit()
+            
+            registrar_log(f'Upload de foto para {colaborador.nome_completo}',
+                         'Colaboradores',
+                         f'ID: {id}, Foto: {foto_filename}')
+            
+            flash('✅ Foto de perfil atualizada com sucesso!', 'success')
+        else:
+            flash('❌ Erro ao salvar a foto. Tente novamente.', 'danger')
+    else:
+        flash('❌ Formato de arquivo não permitido. Use JPG, PNG, GIF ou WebP.', 'danger')
+    
+    return redirect(url_for('ver_colaborador', id=id))
+
+# ============================================================================
+# ROTA PARA REMOVER FOTO DE PERFIL
+# ============================================================================
+@app.route('/colaborador/<int:id>/remover-foto', methods=['POST'])
+@login_required
+@admin_required
+def remover_foto_colaborador(id):
+    """Remove foto de perfil do colaborador"""
+    colaborador = Colaborador.query.get_or_404(id)
+    
+    if colaborador.foto_perfil:
+        # Remover arquivos físicos
+        delete_profile_photos(colaborador.foto_perfil, colaborador.foto_perfil_miniatura)
+        
+        # Limpar campos no banco
+        colaborador.foto_perfil = None
+        colaborador.foto_perfil_miniatura = None
+        colaborador.foto_data_upload = None
+        colaborador.atualizado_por = current_user.id
+        colaborador.data_atualizacao = datetime.utcnow()
+        
+        db.session.commit()
+        
+        registrar_log(f'Removeu foto de {colaborador.nome_completo}',
+                     'Colaboradores',
+                     f'ID: {id}')
+        
+        flash('✅ Foto de perfil removida com sucesso!', 'success')
+    else:
+        flash('⚠️ Este colaborador não possui foto de perfil.', 'info')
+    
+    return redirect(url_for('ver_colaborador', id=id))
+
+# ============================================================================
+# ROTA PARA EXIBIR FOTO DE PERFIL
+# ============================================================================
+@app.route('/colaborador/<int:id>/foto')
+@login_required
+def ver_foto_colaborador(id):
+    """Exibe foto de perfil do colaborador"""
+    colaborador = Colaborador.query.get_or_404(id)
+    
+    if not colaborador.foto_perfil:
+        # Retorna uma imagem padrão ou 404
+        from flask import abort
+        abort(404)
+    
+    foto_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'profile_photos')
+    return send_from_directory(foto_dir, colaborador.foto_perfil)
+
+# ============================================================================
+# ROTA PARA EXIBIR MINIATURA DA FOTO
+# ============================================================================
+@app.route('/colaborador/<int:id>/foto/miniatura')
+@login_required
+def ver_foto_miniatura_colaborador(id):
+    """Exibe miniatura da foto de perfil"""
+    colaborador = Colaborador.query.get_or_404(id)
+    
+    if not colaborador.foto_perfil_miniatura:
+        # Retorna a foto original ou uma padrão
+        if colaborador.foto_perfil:
+            foto_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'profile_photos')
+            return send_from_directory(foto_dir, colaborador.foto_perfil)
+        else:
+            from flask import abort
+            abort(404)
+    
+    foto_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'profile_photos')
+    return send_from_directory(foto_dir, colaborador.foto_perfil_miniatura)
+    
 @app.route('/colaborador/<int:id>/excluir', methods=['POST'])
 @login_required
 @admin_required
