@@ -2049,12 +2049,42 @@ def init_db():
                     print('✅ Usuário admin criado (SQLite)')
                 
                 app.logger.info('✅ Banco SQLite inicializado!')
+		adicionar_campos_faltantes()
                 
         except Exception as e:
             app.logger.error(f'❌ Erro ao inicializar banco: {e}')
             print(f'❌ ERRO CRÍTICO: {e}')
             # Não levantar exceção para não quebrar o app
 
+# ============================================================================
+# MIGRAÇÃO SIMPLES - ADICIONA CAMPOS FALTANTES
+# ============================================================================
+def adicionar_campos_faltantes():
+    """Adiciona campos que faltam na tabela colaboradores"""
+    with app.app_context():
+        try:
+            # Lista de SQLs para executar
+            sql_commands = [
+                "ALTER TABLE colaboradores ADD COLUMN IF NOT EXISTS complemento VARCHAR(100)",
+                "ALTER TABLE colaboradores ADD COLUMN IF NOT EXISTS foto_perfil VARCHAR(255)",
+                "ALTER TABLE colaboradores ADD COLUMN IF NOT EXISTS foto_perfil_miniatura VARCHAR(255)",
+                "ALTER TABLE colaboradores ADD COLUMN IF NOT EXISTS foto_data_upload TIMESTAMP"
+            ]
+            
+            print("🔧 Adicionando campos ao banco de dados...")
+            
+            for sql in sql_commands:
+                try:
+                    db.session.execute(db.text(sql))
+                    print(f"   ✅ {sql[:50]}...")
+                except Exception as e:
+                    print(f"   ⚠️  {e}")
+            
+            db.session.commit()
+            print("🎉 Campos adicionados com sucesso!")
+            
+        except Exception as e:
+            print(f"❌ Erro: {e}")
 # ============================================================================
 # CONFIGURAÇÃO PARA PRODUÇÃO
 # ============================================================================
