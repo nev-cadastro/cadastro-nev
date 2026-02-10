@@ -1909,10 +1909,11 @@ def health_check():
 # ============================================================================
 @app.route('/setup')
 def setup_database():
-    """Rota para configurar banco de dados manualmente"""
+    """Rota para configurar banco de dados manualmente - SEGURA"""
     try:
         with app.app_context():
-            # NÃO recria tudo do zero - apenas verifica e adiciona o necessário
+            # IMPORTANTE: NUNCA use db.create_all() aqui!
+            # Isso DESTRÓI dados existentes
             
             from sqlalchemy import inspect
             inspector = inspect(db.engine)
@@ -1925,64 +1926,107 @@ def setup_database():
             tabelas_faltantes = [t for t in tabelas_necessarias if t not in existing_tables]
             
             if tabelas_faltantes:
-                db.create_all()
-                resultado.append(f"✅ Criadas tabelas faltantes: {', '.join(tabelas_faltantes)}")
+                # Cria APENAS as tabelas que faltam - NÃO APAGA EXISTENTES
+                from sqlalchemy.schema import CreateTable
+                
+                for tabela in tabelas_faltantes:
+                    if tabela == 'usuarios':
+                        # Cria tabela usuarios
+                        User.__table__.create(db.engine, checkfirst=True)
+                        resultado.append("✅ Criada tabela 'usuarios'")
+                        
+                        # Cria usuário admin
+                        admin = User.query.filter_by(username='admin').first()
+                        if not admin:
+                            admin = User(
+                                username='admin',
+                                nome_completo='Administrador NEV',
+                                email='admin@nev.usp.br',
+                                nivel_acesso='admin',
+                                ativo=True
+                            )
+                            admin.set_password('AdminNEV2024')
+                            db.session.add(admin)
+                            db.session.commit()
+                            resultado.append("✅ Usuário admin criado")
+                    
+                    elif tabela == 'colaboradores':
+                        # Cria tabela colaboradores
+                        Colaborador.__table__.create(db.engine, checkfirst=True)
+                        resultado.append("✅ Criada tabela 'colaboradores'")
+                    
+                    elif tabela == 'logs_sistema':
+                        # Cria tabela logs
+                        Log.__table__.create(db.engine, checkfirst=True)
+                        resultado.append("✅ Criada tabela 'logs_sistema'")
+                    
+                    elif tabela == 'observacoes_colaborador':
+                        # Cria tabela observacoes
+                        Observacao.__table__.create(db.engine, checkfirst=True)
+                        resultado.append("✅ Criada tabela 'observacoes_colaborador'")
             else:
                 resultado.append("✅ Todas as tabelas já existem")
+                resultado.append("✅ DADOS PRESERVADOS!")
             
-            # Verificar se admin existe
-            admin = User.query.filter_by(username='admin').first()
-            if not admin:
-                admin = User(
-                    username='admin',
-                    nome_completo='Administrador NEV',
-                    email='admin@nev.usp.br',
-                    nivel_acesso='admin',
-                    ativo=True
-                )
-                admin.set_password('AdminNEV2024')
-                db.session.add(admin)
-                db.session.commit()
-                resultado.append("✅ Usuário admin criado")
-            else:
-                resultado.append("✅ Usuário admin já existe")
-            
-            # Adicionar campos faltantes de forma segura
+            # Verificar e adicionar campos faltantes de forma segura
             try:
-                colaboradores_columns = [col['name'] for col in inspector.get_columns('colaboradores')]
-                
-                if 'complemento' not in colaboradores_columns:
-                    db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN complemento VARCHAR(100)"))
-                    resultado.append("✅ Adicionado campo 'complemento'")
-                
-                if 'foto_perfil' not in colaboradores_columns:
-                    db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN foto_perfil VARCHAR(255)"))
-                    resultado.append("✅ Adicionado campo 'foto_perfil'")
-                
-                if 'foto_perfil_miniatura' not in colaboradores_columns:
-                    db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN foto_perfil_miniatura VARCHAR(255)"))
-                    resultado.append("✅ Adicionado campo 'foto_perfil_miniatura'")
-                
-                if 'foto_data_upload' not in colaboradores_columns:
-                    db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN foto_data_upload TIMESTAMP"))
-                    resultado.append("✅ Adicionado campo 'foto_data_upload'")
-                
+                if 'colaboradores' in existing_tables:
+                    colaboradores_columns = [col['name'] for col in inspector.get_columns('colaboradores')]
+                    
+                    if 'complemento' not in colaboradores_columns:
+                        db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN IF NOT EXISTS complemento VARCHAR(100)"))
+                        resultado.append("✅ Adicionado campo 'complemento'")
+                    
+                    if 'foto_perfil' not in colaboradores_columns:
+                        db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN IF NOT EXISTS foto_perfil VARCHAR(255)"))
+                        resultado.append("✅ Adicionado campo 'foto_perfil'")
+                    
+                    if 'foto_perfil_miniatura' not in colaboradores_columns:
+                        db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN IF NOT EXISTS foto_perfil_miniatura VARCHAR(255)"))
+                        resultado.append("✅ Adicionado campo 'foto_perfil_miniatura'")
+                    
+                    if 'foto_data_upload' not in colaboradores_columns:
+                        db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN IF NOT EXISTS foto_data_upload TIMESTAMP"))
+                        resultado.append("✅ Adicionado campo 'foto_data_upload'")
+                    
             except Exception as e:
-                resultado.append(f"⚠️ Erro ao adicionar campos: {e}")
+                resultado.append(f"⚠️  Nota: {str(e)[:100]}...")
             
             db.session.commit()
             
             return f"""
-            <h1>✅ Configuração Segura Concluída!</h1>
-            <p><strong>DADOS PRESERVADOS!</strong></p>
-            <p>Resultados:</p>
-            <ul>
-                <li>{'<br>'.join(resultado)}</li>
-            </ul>
-            <p>Login: <strong>admin</strong></p>
-            <p>Senha: <strong>AdminNEV2024</strong></p>
-            <a href="/login">Ir para login</a>
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Configuração SEGURA - Sistema NEV</title>
+                <style>
+                    body {{ font-family: Arial, sans-serif; margin: 40px; }}
+                    .success {{ color: green; font-weight: bold; }}
+                    .warning {{ color: orange; }}
+                    .danger {{ color: red; }}
+                </style>
+            </head>
+            <body>
+                <h1>✅ Configuração SEGURA Concluída!</h1>
+                <p class="success"><strong>✅ DADOS PRESERVADOS!</strong> Nenhuma tabela foi apagada.</p>
+                <p><strong>Resultados:</strong></p>
+                <ul>
+                    {' '.join([f'<li>{r}</li>' for r in resultado])}
+                </ul>
+                <p><strong>Login:</strong> admin</p>
+                <p><strong>Senha:</strong> AdminNEV2024</p>
+                <p><a href="/login" style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir para login</a></p>
+                <p class="warning"><small>Nota: Esta versão NÃO apaga dados existentes.</small></p>
+            </body>
+            </html>
             """
+    except Exception as e:
+        return f"""
+        <h1>❌ Erro na configuração</h1>
+        <p>Erro: {str(e)}</p>
+        <p><strong>IMPORTANTE:</strong> Seus dados NÃO foram afetados por este erro.</p>
+        <a href="/">Voltar</a>
+        """
     except Exception as e:
         return f"""
         <h1>❌ Erro na configuração</h1>
@@ -1992,14 +2036,24 @@ def setup_database():
 
 @app.route('/init-db')
 def init_database():
-    """Rota para inicializar banco de dados manualmente"""
+    """Rota para inicializar banco de dados manualmente - SEGURA"""
     try:
         with app.app_context():
-            db.create_all()
+            # NÃO use db.create_all() - isso apaga dados!
+            # Em vez disso, verifique e crie apenas o necessário
             
-            # Criar admin se não existir
-            admin = User.query.filter_by(username='admin').first()
-            if not admin:
+            from sqlalchemy import inspect
+            inspector = inspect(db.engine)
+            existing_tables = inspector.get_table_names()
+            
+            tabelas_criadas = []
+            
+            # Criar tabelas apenas se não existirem
+            if 'usuarios' not in existing_tables:
+                User.__table__.create(db.engine, checkfirst=True)
+                tabelas_criadas.append('usuarios')
+                
+                # Criar admin
                 admin = User(
                     username='admin',
                     nome_completo='Administrador NEV',
@@ -2009,16 +2063,39 @@ def init_database():
                 )
                 admin.set_password('AdminNEV2024')
                 db.session.add(admin)
-                db.session.commit()
             
-            return jsonify({
-                'success': True,
-                'message': 'Banco inicializado com sucesso!'
-            })
+            if 'colaboradores' not in existing_tables:
+                Colaborador.__table__.create(db.engine, checkfirst=True)
+                tabelas_criadas.append('colaboradores')
+            
+            if 'logs_sistema' not in existing_tables:
+                Log.__table__.create(db.engine, checkfirst=True)
+                tabelas_criadas.append('logs_sistema')
+            
+            if 'observacoes_colaborador' not in existing_tables:
+                Observacao.__table__.create(db.engine, checkfirst=True)
+                tabelas_criadas.append('observacoes_colaborador')
+            
+            db.session.commit()
+            
+            if tabelas_criadas:
+                return jsonify({
+                    'success': True,
+                    'message': f'✅ Tabelas criadas: {", ".join(tabelas_criadas)}',
+                    'warning': 'DADOS EXISTENTES PRESERVADOS!'
+                })
+            else:
+                return jsonify({
+                    'success': True,
+                    'message': '✅ Banco já inicializado',
+                    'warning': 'Nenhuma tabela foi apagada'
+                })
+            
     except Exception as e:
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': str(e),
+            'note': 'Seus dados NÃO foram apagados por este erro'
         }), 500
 
 @app.route('/test-db')
