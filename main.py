@@ -1714,13 +1714,18 @@ def relatorios():
 
 @app.route('/gerar_relatorio_pdf', methods=['POST'])
 @login_required
-@admin_required  # Apenas admin e superadmin
+@admin_required
 def gerar_relatorio_pdf():
-    """Gera relatório em PDF profissional"""
+    """Gera relatório em PDF profissional usando ReportLab"""
     try:
-        from reportlab.pdfgen import canvas
-        from reportlab.lib.utils import ImageReader
-        import os
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import cm
+        from reportlab.lib import colors
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        import io
         
         # Obter parâmetros do formulário
         filtro_vinculo = request.form.get('filtro_vinculo', 'todos')
@@ -1732,7 +1737,7 @@ def gerar_relatorio_pdf():
             flash('Selecione pelo menos um campo para o relatório.', 'warning')
             return redirect(url_for('relatorios'))
         
-        # Construir query (mesma lógica do CSV)
+        # Construir query
         query = Colaborador.query
         
         if filtro_vinculo and filtro_vinculo != 'todos':
@@ -1751,17 +1756,16 @@ def gerar_relatorio_pdf():
             'nome_social': 'Nome Social',
             'cpf': 'CPF',
             'rg': 'RG',
-            'data_nascimento': 'Data Nascimento',
+            'data_nascimento': 'Nascimento',
             'email_institucional': 'Email',
             'celular': 'Celular',
             'whatsapp': 'WhatsApp',
             'tipo_vinculo': 'Vínculo',
             'departamento': 'Departamento',
-            'lotacao': 'Lotação',
-            'data_ingresso': 'Data Ingresso',
+            'data_ingresso': 'Ingresso',
             'status': 'Status',
-            'atende_imprensa': 'Atende Imprensa',
-            'tipos_imprensa': 'Tipos Imprensa',
+            'atende_imprensa': 'Imprensa',
+            'tipos_imprensa': 'Tipos',
             'assuntos_especializacao': 'Especialização',
             'orcid': 'ORCID',
             'curriculo_lattes': 'Lattes'
@@ -1769,9 +1773,16 @@ def gerar_relatorio_pdf():
         
         # Criar PDF em memória
         buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4, 
-                                rightMargin=72, leftMargin=72,
-                                topMargin=72, bottomMargin=72)
+        
+        # Configurar documento em paisagem (landscape) para mais colunas
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=landscape(A4),
+            rightMargin=1*cm,
+            leftMargin=1*cm,
+            topMargin=1.5*cm,
+            bottomMargin=1.5*cm
+        )
         
         elements = []
         styles = getSampleStyleSheet()
@@ -1781,37 +1792,38 @@ def gerar_relatorio_pdf():
             'CustomTitle',
             parent=styles['Heading1'],
             fontSize=16,
-            spaceAfter=30,
-            alignment=1  # Center
+            spaceAfter=20,
+            alignment=1,  # Center
+            textColor=colors.HexColor('#1e40af')
         )
         
-        # Título do relatório
-        title = Paragraph(f"<b>RELATÓRIO DE COLABORADORES - CADNEV</b>", title_style)
+        # Título
+        title = Paragraph("<b>CADNEV - Núcleo de Estudos da Violência USP</b>", title_style)
         elements.append(title)
         
-        # Informações do relatório
-        info_style = ParagraphStyle(
-            'InfoStyle',
-            parent=styles['Normal'],
-            fontSize=10,
-            spaceAfter=12
+        subtitle = Paragraph(
+            f"<b>RELATÓRIO DE COLABORADORES</b><br/>"
+            f"<font size=10>Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')}</font>",
+            styles['Normal']
         )
+        elements.append(subtitle)
+        elements.append(Spacer(1, 0.5*cm))
         
-        filtros_info = []
+        # Informações dos filtros
+        filtros_texto = []
         if filtro_vinculo != 'todos':
-            filtros_info.append(f"Vínculo: {filtro_vinculo}")
+            filtros_texto.append(f"Vínculo: {filtro_vinculo}")
         if filtro_departamento != 'todos':
-            filtros_info.append(f"Departamento: {filtro_departamento}")
+            filtros_texto.append(f"Departamento: {filtro_departamento}")
         if filtro_status != 'todos':
-            filtros_info.append(f"Status: {filtro_status}")
+            filtros_texto.append(f"Status: {filtro_status}")
         
-        info_text = f"<b>Data:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')} | "
-        info_text += f"<b>Total de registros:</b> {len(colaboradores)}"
-        if filtros_info:
-            info_text += f" | <b>Filtros:</b> {', '.join(filtros_info)}"
+        info_text = f"<b>Total de registros:</b> {len(colaboradores)}"
+        if filtros_texto:
+            info_text += f" | <b>Filtros:</b> {', '.join(filtros_texto)}"
         
-        elements.append(Paragraph(info_text, info_style))
-        elements.append(Spacer(1, 20))
+        elements.append(Paragraph(info_text, styles['Normal']))
+        elements.append(Spacer(1, 0.5*cm))
         
         # Preparar dados da tabela
         data = []
@@ -1837,39 +1849,79 @@ def gerar_relatorio_pdf():
                 elif campo == 'celular' and valor:
                     valor = formatar_telefone(valor)
                 
+                # Truncar textos muito longos
+                if isinstance(valor, str) and len(valor) > 30:
+                    valor = valor[:27] + '...'
+                
                 linha.append(str(valor))
             data.append(linha)
         
         # Criar tabela
-        table = Table(data)
+        table = Table(data, repeatRows=1)
         
         # Estilo da tabela
-        table.setStyle(TableStyle([
+        style = [
+            # Cabeçalho
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e40af')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('TOPPADDING', (0, 0), (-1, 0), 8),
+            
+            # Corpo
+            ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('ALIGN', (0, 1), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
             ('FONTSIZE', (0, 1), (-1, -1), 8),
-            ('TOPPADDING', (0, 1), (-1, -1), 6),
-            ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
-        ]))
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 5),
+            ('TOPPADDING', (0, 1), (-1, -1), 5),
+            
+            # Grid
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('BOX', (0, 0), (-1, -1), 1, colors.black),
+            
+            # Linhas alternadas
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+        ]
+        
+        # Destacar status
+        if 'status' in campos_selecionados:
+            status_col = campos_selecionados.index('status')
+            for i, row in enumerate(data[1:], start=1):
+                if row[status_col] == 'Ativo':
+                    style.append(('BACKGROUND', (status_col, i), (status_col, i), colors.HexColor('#d4edda')))
+                elif row[status_col] == 'Inativo':
+                    style.append(('BACKGROUND', (status_col, i), (status_col, i), colors.HexColor('#f8d7da')))
+        
+        table.setStyle(TableStyle(style))
+        
+        # Ajustar larguras das colunas
+        col_widths = []
+        page_width = landscape(A4)[0] - 2*cm  # Largura da página menos margens
+        
+        # Distribuir largura proporcionalmente
+        num_cols = len(header)
+        for i in range(num_cols):
+            if header[i] in ['Nome Completo', 'Email']:
+                col_widths.append(page_width * 0.15)  # Colunas maiores
+            elif header[i] in ['Especialização', 'Observações']:
+                col_widths.append(page_width * 0.12)
+            elif header[i] in ['Matrícula', 'CPF', 'Telefone']:
+                col_widths.append(page_width * 0.1)
+            else:
+                col_widths.append(page_width * 0.08)  # Colunas padrão
+        
+        table._argW = col_widths
         
         elements.append(table)
         
         # Rodapé
-        elements.append(Spacer(1, 30))
-        footer_style = ParagraphStyle(
-            'FooterStyle',
-            parent=styles['Normal'],
-            fontSize=8,
-            alignment=1,
-            textColor=colors.grey
-        )
-        footer = Paragraph(f"Relatório gerado automaticamente pelo Sistema CADNEV - NEV USP", footer_style)
+        elements.append(Spacer(1, 0.5*cm))
+        footer_text = f"Relatório gerado automaticamente pelo Sistema CADNEV - {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+        footer = Paragraph(f"<font size=8>{footer_text}</font>", styles['Normal'])
         elements.append(footer)
         
         # Construir PDF
@@ -1879,7 +1931,7 @@ def gerar_relatorio_pdf():
         
         # Registrar log
         registrar_log('Gerou relatório PDF', 'Relatórios',
-                     f'Registros: {len(colaboradores)}, Filtros: {filtros_info}')
+                     f'Registros: {len(colaboradores)}, Campos: {len(campos_selecionados)}')
         
         # Retornar PDF para download
         nome_arquivo = f"relatorio_cadnev_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
