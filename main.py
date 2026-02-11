@@ -2416,6 +2416,68 @@ def enviar_notificacao_admins(assunto, mensagem):
 # ============================================================================
 # ROTA DE DEBUG
 # ============================================================================
+@app.route('/debug-me')
+@login_required
+def debug_me():
+    """Mostra informações do usuário logado"""
+    return f'''
+    <html>
+        <body style="font-family: Arial; padding: 40px;">
+            <h1>🔍 Debug do Usuário</h1>
+            <div style="background: #f0f2f5; padding: 20px; border-radius: 5px;">
+                <p><strong>ID:</strong> {current_user.id}</p>
+                <p><strong>Username:</strong> {current_user.username}</p>
+                <p><strong>Nome:</strong> {current_user.nome_completo}</p>
+                <p><strong>Email:</strong> {current_user.email}</p>
+                <p><strong style="font-size: 1.2em;">Nível de Acesso:</strong> 
+                    <span style="background: {'#28a745' if current_user.nivel_acesso == 'superadmin' else '#ffc107'}; 
+                                 color: {'white' if current_user.nivel_acesso == 'superadmin' else 'black'}; 
+                                 padding: 5px 15px; border-radius: 20px; font-weight: bold;">
+                        {current_user.nivel_acesso}
+                    </span>
+                </p>
+                <p><strong>Ativo:</strong> {current_user.ativo}</p>
+                <p><strong>Senha alterada:</strong> {current_user.senha_alterada}</p>
+            </div>
+            <div style="margin-top: 20px;">
+                <a href="/dashboard" style="background: #1e40af; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Voltar</a>
+                <a href="/fix-admin-now" style="background: #dc3545; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-left: 10px;">CORRIGIR AGORA</a>
+            </div>
+        </body>
+    </html>
+    '''
+
+@app.route('/fix-admin-now')
+@login_required
+def fix_admin_now():
+    """CORRIGE o nível de acesso do usuário atual para superadmin"""
+    try:
+        # APENAS PARA DEBUG - EM PRODUÇÃO REMOVA ISSO
+        user = User.query.get(current_user.id)
+        old_level = user.nivel_acesso
+        user.nivel_acesso = 'superadmin'
+        db.session.commit()
+        
+        return f'''
+        <html>
+            <body style="font-family: Arial; padding: 40px;">
+                <h1 style="color: #28a745;">✅ NÍVEL CORRIGIDO!</h1>
+                <div style="background: #d4edda; padding: 20px; border-radius: 5px; border-left: 5px solid #28a745;">
+                    <p><strong>Usuário:</strong> {user.username}</p>
+                    <p><strong>Nível anterior:</strong> {old_level}</p>
+                    <p><strong>Nível atual:</strong> <span style="font-weight: bold; color: #28a745;">superadmin</span></p>
+                </div>
+                <p style="margin-top: 20px;">⚠️ <strong>IMPORTANTE:</strong> Faça LOGOUT e LOGIN novamente!</p>
+                <div style="margin-top: 20px;">
+                    <a href="/logout" style="background: #dc3545; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">FAZER LOGOUT AGORA</a>
+                    <a href="/debug-me" style="background: #6c757d; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-left: 10px;">Verificar Novamente</a>
+                </div>
+            </body>
+        </html>
+        '''
+    except Exception as e:
+        return f"<h1>❌ Erro: {e}</h1>"
+        
 @app.route('/debug/routes')
 @login_required
 @superadmin_required
@@ -3300,6 +3362,88 @@ def fix_admin():
                 <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px;">
                     <h1 style="color: #dc3545;">❌ Erro</h1>
                     <p>{str(e)}</p>
+                </div>
+            </body>
+        </html>
+        '''
+        
+# ============================================================================
+# ROTA PARA INICIALIZAR BANCO DE DADOS EM PRODUÇÃO
+# ============================================================================
+@app.route('/init-db')
+def init_db_production():
+    """Inicializa o banco de dados em produção"""
+    try:
+        with app.app_context():
+            # Criar todas as tabelas
+            db.create_all()
+            print("✅ Tabelas criadas com sucesso!")
+            
+            # Criar usuário superadmin se não existir
+            admin = User.query.filter_by(username='admin').first()
+            if not admin:
+                admin = User(
+                    username='admin',
+                    nome_completo='ADMINISTRADOR',
+                    email='admin@nev.usp.br',
+                    nivel_acesso='superadmin',
+                    ativo=True
+                )
+                admin.set_password('AdminNEV2024')
+                db.session.add(admin)
+                db.session.commit()
+                print("✅ Usuário admin criado com nível superadmin")
+            
+            # Verificar se a tabela convites existe
+            from sqlalchemy import inspect
+            inspector = inspect(db.engine)
+            tables = inspector.get_table_names()
+            
+            if 'convites' not in tables:
+                # Criar tabela de convites
+                db.session.execute('''
+                    CREATE TABLE convites (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        codigo VARCHAR(50) UNIQUE NOT NULL,
+                        cpf VARCHAR(14) NOT NULL,
+                        email VARCHAR(120) NOT NULL,
+                        token_confirmacao VARCHAR(100) UNIQUE NOT NULL,
+                        data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        data_expiracao TIMESTAMP NOT NULL,
+                        usado BOOLEAN DEFAULT FALSE,
+                        usado_em TIMESTAMP,
+                        criado_por INTEGER,
+                        FOREIGN KEY(criado_por) REFERENCES usuarios(id)
+                    )
+                ''')
+                db.session.commit()
+                print("✅ Tabela convites criada")
+            
+            return '''
+            <html>
+                <head><title>CADNEV - Inicialização</title></head>
+                <body style="font-family: Arial; padding: 40px; background: #f0f2f5;">
+                    <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                        <h1 style="color: #1e40af;">✅ Banco de dados inicializado!</h1>
+                        <p style="font-size: 16px; line-height: 1.5;">Todas as tabelas foram criadas com sucesso.</p>
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                            <strong>Login:</strong> admin<br>
+                            <strong>Senha:</strong> AdminNEV2024
+                        </div>
+                        <a href="/login" style="display: inline-block; background: #1e40af; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">Ir para o sistema</a>
+                    </div>
+                </body>
+            </html>
+            '''
+    except Exception as e:
+        return f'''
+        <html>
+            <body style="font-family: Arial; padding: 40px; background: #f0f2f5;">
+                <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    <h1 style="color: #dc3545;">❌ Erro na inicialização</h1>
+                    <p style="font-size: 16px; color: #666;">{str(e)}</p>
+                    <pre style="background: #f8f9fa; padding: 10px; border-radius: 5px; overflow: auto;">{str(e)}</pre>
+                    <a href="/" style="display: inline-block; background: #6c757d; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 20px;">Voltar</a>
                 </div>
             </body>
         </html>
