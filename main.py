@@ -3150,6 +3150,88 @@ def migrate_safe():
         <a href="/dashboard">Voltar ao Dashboard</a>
         """
 # ============================================================================
+# ROTA PARA INICIALIZAR BANCO DE DADOS EM PRODUÇÃO
+# ============================================================================
+@app.route('/init-db')
+def init_db_production():
+    """Inicializa o banco de dados em produção"""
+    try:
+        with app.app_context():
+            # Criar todas as tabelas
+            db.create_all()
+            print("✅ Tabelas criadas com sucesso!")
+            
+            # Criar usuário superadmin se não existir
+            admin = User.query.filter_by(username='admin').first()
+            if not admin:
+                admin = User(
+                    username='admin',
+                    nome_completo='ADMINISTRADOR',
+                    email='admin@nev.usp.br',
+                    nivel_acesso='superadmin',
+                    ativo=True
+                )
+                admin.set_password('AdminNEV2024')
+                db.session.add(admin)
+                db.session.commit()
+                print("✅ Usuário admin criado com nível superadmin")
+            
+            # Verificar se a tabela convites existe
+            from sqlalchemy import inspect
+            inspector = inspect(db.engine)
+            tables = inspector.get_table_names()
+            
+            if 'convites' not in tables:
+                # Criar tabela de convites
+                db.session.execute('''
+                    CREATE TABLE convites (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        codigo VARCHAR(50) UNIQUE NOT NULL,
+                        cpf VARCHAR(14) NOT NULL,
+                        email VARCHAR(120) NOT NULL,
+                        token_confirmacao VARCHAR(100) UNIQUE NOT NULL,
+                        data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        data_expiracao TIMESTAMP NOT NULL,
+                        usado BOOLEAN DEFAULT FALSE,
+                        usado_em TIMESTAMP,
+                        criado_por INTEGER,
+                        FOREIGN KEY(criado_por) REFERENCES usuarios(id)
+                    )
+                ''')
+                db.session.commit()
+                print("✅ Tabela convites criada")
+            
+            return '''
+            <html>
+                <head><title>CADNEV - Inicialização</title></head>
+                <body style="font-family: Arial; padding: 40px; background: #f0f2f5;">
+                    <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                        <h1 style="color: #1e40af;">✅ Banco de dados inicializado!</h1>
+                        <p style="font-size: 16px; line-height: 1.5;">Todas as tabelas foram criadas com sucesso.</p>
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                            <strong>Login:</strong> admin<br>
+                            <strong>Senha:</strong> AdminNEV2024
+                        </div>
+                        <a href="/login" style="display: inline-block; background: #1e40af; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">Ir para o sistema</a>
+                    </div>
+                </body>
+            </html>
+            '''
+    except Exception as e:
+        return f'''
+        <html>
+            <body style="font-family: Arial; padding: 40px; background: #f0f2f5;">
+                <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    <h1 style="color: #dc3545;">❌ Erro na inicialização</h1>
+                    <p style="font-size: 16px; color: #666;">{str(e)}</p>
+                    <pre style="background: #f8f9fa; padding: 10px; border-radius: 5px; overflow: auto;">{str(e)}</pre>
+                    <a href="/" style="display: inline-block; background: #6c757d; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 20px;">Voltar</a>
+                </div>
+            </body>
+        </html>
+        '''
+        
+# ============================================================================
 # CONFIGURAÇÃO PARA PRODUÇÃO
 # ============================================================================
 if __name__ == '__main__':
