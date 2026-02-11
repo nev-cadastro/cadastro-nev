@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Convidar Usuário - CADNEV{% endblock %}
+
+{% block breadcrumb %}
+    <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+    <li class="breadcrumb-item active">Convidar Usuário</li>
+{% endblock %}
+
+{% block page_title %}Convidar para Auto-Cadastro{% endblock %}
+{% block page_subtitle %}Gere um convite para que novas pessoas se cadastrem no sistema{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <div class="alert alert-info mb-4">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    <strong>Como funciona:</strong> Gere um convite para que uma pessoa possa se cadastrar 
+                    no sistema. Ela receberá um código por email para confirmar o cadastro.
+                </div>
+                
+                <form method="POST">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="cpf" class="form-label fw-bold required">CPF</label>
+                            <input type="text" class="form-control cpf" id="cpf" name="cpf" 
+                                   placeholder="000.000.000-00" required>
+                            <small class="text-muted">CPF do futuro colaborador</small>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="email" class="form-label fw-bold required">Email</label>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   placeholder="colaborador@exemplo.com" required>
+                            <small class="text-muted">Email para receber o código de confirmação</small>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 pt-3 border-top">
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-light px-4">
+                                <i class="bi bi-arrow-left me-1"></i> Voltar
+                            </a>
+                            <button type="submit" class="btn btn-primary px-5">
+                                <i class="bi bi-envelope-plus me-2"></i> Gerar Convite
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        {% if convite %}
+        <div class="card border-0 shadow-sm mt-4 border-start border-primary border-4">
+            <div class="card-body">
+                <h5 class="fw-bold text-primary mb-3">
+                    <i class="bi bi-check-circle-fill me-2"></i>Convite Gerado!
+                </h5>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="small text-muted d-block">Código do Convite</label>
+                        <code class="fs-5 fw-bold">{{ convite.codigo }}</code>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="small text-muted d-block">Válido até</label>
+                        <span class="fw-medium">{{ convite.data_expiracao.strftime('%d/%m/%Y %H:%M') }}</span>
+                    </div>
+                    <div class="col-12">
+                        <a href="{{ url_for('visualizar_convite', codigo=convite.codigo) }}" 
+                           class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-qr-code me-1"></i> Ver Convite com QR Code
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.required:after {
+    content: " *";
+    color: var(--nev-danger);
+}
+</style>
+
+<script>
+// Máscara para CPF
+document.getElementById('cpf').addEventListener('input', function(e) {
+    let value = e.target.value.replace(/\D/g, '');
+    if (value.length > 3) {
+        value = value.substring(0,3) + '.' + value.substring(3);
+    }
+    if (value.length > 7) {
+        value = value.substring(0,7) + '.' + value.substring(7);
+    }
+    if (value.length > 11) {
+        value = value.substring(0,11) + '-' + value.substring(11,13);
+    }
+    e.target.value = value;
+});
+</script>
+{% endblock %}

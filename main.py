@@ -34,6 +34,12 @@ from flask_login import (
 from flask_migrate import Migrate
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import or_, func, desc
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.lib import colors
+import io
 
 
 # ============================================================================
@@ -365,6 +371,10 @@ class User(UserMixin, db.Model):
     data_cadastro = db.Column(db.DateTime, default=datetime.utcnow)
     ultimo_login = db.Column(db.DateTime)
     senha_alterada = db.Column(db.Boolean, default=False)
+    # Campos para foto do perfil
+    foto_perfil = db.Column(db.String(255))
+    foto_perfil_miniatura = db.Column(db.String(255))
+    foto_data_upload = db.Column(db.DateTime)
 
     def set_password(self, password: str) -> None:
         self.senha_hash = generate_password_hash(password)
@@ -496,6 +506,29 @@ class Observacao(db.Model):
     usuario_nome = db.Column(db.String(100))
     colaborador = db.relationship('Colaborador', backref=db.backref('historico_observacoes', lazy=True, cascade="all, delete-orphan"))
 
+class Convite(db.Model):
+    """Modelo para convites de auto-cadastro"""
+    __tablename__ = 'convites'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    codigo = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    cpf = db.Column(db.String(14), nullable=False)
+    email = db.Column(db.String(120), nullable=False)
+    token_confirmacao = db.Column(db.String(100), unique=True, nullable=False)
+    data_criacao = db.Column(db.DateTime, default=datetime.utcnow)
+    data_expiracao = db.Column(db.DateTime, nullable=False)
+    usado = db.Column(db.Boolean, default=False)
+    usado_em = db.Column(db.DateTime)
+    criado_por = db.Column(db.Integer, db.ForeignKey('usuarios.id'))
+    
+    criador = db.relationship('User', foreign_keys=[criado_por])
+    
+    def __repr__(self):
+        return f'<Convite {self.codigo} para {self.email}>'
+    
+    def is_valido(self):
+        return (not self.usado) and (datetime.utcnow() < self.data_expiracao)
+        
 # ============================================================================
 # CONTEXT PROCESSOR (ATUALIZADO)
 # ============================================================================
@@ -1346,6 +1379,190 @@ def excluir_observacao(id):
     flash('Observação removida e registrada no log.', 'info')
     return redirect(url_for('ver_colaborador', id=colab_id))
 
+
+# ============================================================================
+# ROTAS PARA FOTOS DE USUÁRIOS
+# ============================================================================
+
+@app.route('/usuario/<int:id>/upload-foto', methods=['POST'])
+@login_required
+def upload_foto_usuario(id):
+    """Upload de foto de perfil para usuário"""
+    usuario = User.query.get_or_404(id)
+    
+    # Verificar permissões
+    if current_user.id != id and current_user.nivel_acesso not in ['admin', 'superadmin']:
+        flash('Você só pode alterar sua própria foto.', 'danger')
+        return redirect(url_for('meu_perfil'))
+    
+    # Verificar se é upload por arquivo ou base64
+    if 'foto_perfil' in request.files and request.files['foto_perfil'].filename:
+        file = request.files['foto_perfil']
+    elif request.form.get('foto_base64'):
+        # Processar foto da câmera (base64)
+        import base64
+        from io import BytesIO
+        
+        try:
+            base64_data = request.form.get('foto_base64').split(',')[1]
+            image_data = base64.b64decode(base64_data)
+            image = Image.open(BytesIO(image_data))
+            
+            # Salvar imagem temporariamente
+            import uuid
+            filename = f"user_{id}_{uuid.uuid4().hex[:8]}.jpg"
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], 'user_photos', filename)
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            image.save(file_path, 'JPEG', quality=85)
+            
+            # Usar a função de save_profile_photo existente
+            file_obj = BytesIO()
+            image.save(file_obj, 'JPEG')
+            file_obj.seek(0)
+            file = type('obj', (object,), {
+                'filename': filename,
+                'save': lambda path: image.save(path, 'JPEG', quality=85)
+            })()
+        except Exception as e:
+            app.logger.error(f'Erro ao processar foto base64: {e}')
+            flash('Erro ao processar foto da câmera.', 'danger')
+            return redirect(url_for('meu_perfil'))
+    else:
+        flash('Nenhuma foto selecionada.', 'danger')
+        return redirect(url_for('meu_perfil'))
+    
+    # Remover foto antiga se existir
+    if usuario.foto_perfil:
+        delete_profile_photos(usuario.foto_perfil, usuario.foto_perfil_miniatura)
+    
+    # Salvar nova foto
+    foto_filename, thumb_filename = save_profile_photo(
+        file, 
+        usuario.id, 
+        usuario.nome_completo.replace(' ', '_'),
+        'user_photos'  # Novo parâmetro para diretório
+    )
+    
+    if foto_filename:
+        usuario.foto_perfil = foto_filename
+        usuario.foto_perfil_miniatura = thumb_filename
+        usuario.foto_data_upload = datetime.utcnow()
+        
+        db.session.commit()
+        
+        registrar_log(f'Upload de foto para usuário {usuario.nome_completo}',
+                     'Usuários',
+                     f'ID: {id}, Foto: {foto_filename}')
+        
+        flash('✅ Foto de perfil atualizada com sucesso!', 'success')
+    else:
+        flash('❌ Erro ao salvar a foto. Tente novamente.', 'danger')
+    
+    return redirect(url_for('meu_perfil'))
+
+@app.route('/usuario/<int:id>/remover-foto', methods=['POST'])
+@login_required
+def remover_foto_usuario(id):
+    """Remove foto de perfil do usuário"""
+    usuario = User.query.get_or_404(id)
+    
+    # Verificar permissões
+    if current_user.id != id and current_user.nivel_acesso not in ['admin', 'superadmin']:
+        flash('Você só pode remover sua própria foto.', 'danger')
+        return redirect(url_for('meu_perfil'))
+    
+    if usuario.foto_perfil:
+        # Remover arquivos físicos
+        delete_profile_photos(usuario.foto_perfil, usuario.foto_perfil_miniatura, 'user_photos')
+        
+        # Limpar campos no banco
+        usuario.foto_perfil = None
+        usuario.foto_perfil_miniatura = None
+        usuario.foto_data_upload = None
+        
+        db.session.commit()
+        
+        registrar_log(f'Removeu foto de usuário {usuario.nome_completo}',
+                     'Usuários',
+                     f'ID: {id}')
+        
+        flash('✅ Foto de perfil removida com sucesso!', 'success')
+    else:
+        flash('⚠️ Este usuário não possui foto de perfil.', 'info')
+    
+    return redirect(url_for('meu_perfil'))
+
+# ATUALIZE A FUNÇÃO save_profile_photo PARA ACEITAR DIRETÓRIO PERSONALIZADO:
+def save_profile_photo(file, entity_id, user_name, photo_type='profile_photos'):
+    """Salva foto de perfil com nome único"""
+    import uuid
+    import os
+    
+    if not file or not allowed_file(file.filename):
+        return None, None
+    
+    # Cria diretório para fotos se não existir
+    foto_dir = os.path.join(app.config['UPLOAD_FOLDER'], photo_type)
+    os.makedirs(foto_dir, exist_ok=True)
+    
+    # Gera nome único para o arquivo
+    file_ext = file.filename.rsplit('.', 1)[1].lower() if hasattr(file, 'filename') else 'jpg'
+    unique_filename = f"{entity_id}_{user_name}_{uuid.uuid4().hex[:8]}.{file_ext}"
+    
+    # Caminho completo
+    file_path = os.path.join(foto_dir, unique_filename)
+    
+    try:
+        # Salvar arquivo
+        if hasattr(file, 'save'):
+            file.save(file_path)
+        else:
+            # Se for um objeto com método save personalizado
+            file.save(file_path)
+        
+        # Comprime a imagem
+        compress_image(file_path, max_size=(800, 800), quality=85)
+        
+        # Gera miniatura
+        thumb_path = generate_thumbnail(file_path)
+        
+        if thumb_path:
+            thumb_filename = os.path.basename(thumb_path)
+        else:
+            thumb_filename = None
+        
+        return os.path.basename(file_path), thumb_filename
+    
+    except Exception as e:
+        app.logger.error(f'Erro ao salvar foto: {e}')
+        # Remove arquivo se houve erro
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        return None, None
+
+# ATUALIZE A FUNÇÃO delete_profile_photos:
+def delete_profile_photos(filename, thumb_filename, photo_type='profile_photos'):
+    """Remove foto e miniatura"""
+    import os
+    
+    foto_dir = os.path.join(app.config['UPLOAD_FOLDER'], photo_type)
+    
+    try:
+        if filename:
+            foto_path = os.path.join(foto_dir, filename)
+            if os.path.exists(foto_path):
+                os.remove(foto_path)
+        
+        if thumb_filename:
+            thumb_path = os.path.join(foto_dir, thumb_filename)
+            if os.path.exists(thumb_path):
+                os.remove(thumb_path)
+        
+        return True
+    except Exception as e:
+        app.logger.error(f'Erro ao remover fotos: {e}')
+        return False
+        
 # ============================================================================
 # EXPORTAÇÃO E RELATÓRIOS
 # ============================================================================
@@ -1495,6 +1712,192 @@ def relatorios():
                            vinculos=lista_vincs,
                            categorias_campos=categorias_campos)
 
+@app.route('/gerar_relatorio_pdf', methods=['POST'])
+@login_required
+@admin_required  # Apenas admin e superadmin
+def gerar_relatorio_pdf():
+    """Gera relatório em PDF profissional"""
+    try:
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.utils import ImageReader
+        import os
+        
+        # Obter parâmetros do formulário
+        filtro_vinculo = request.form.get('filtro_vinculo', 'todos')
+        filtro_departamento = request.form.get('filtro_departamento', 'todos')
+        filtro_status = request.form.get('filtro_status', 'todos')
+        campos_selecionados = request.form.getlist('campos')
+        
+        if not campos_selecionados:
+            flash('Selecione pelo menos um campo para o relatório.', 'warning')
+            return redirect(url_for('relatorios'))
+        
+        # Construir query (mesma lógica do CSV)
+        query = Colaborador.query
+        
+        if filtro_vinculo and filtro_vinculo != 'todos':
+            query = query.filter(Colaborador.tipo_vinculo == filtro_vinculo)
+        if filtro_departamento and filtro_departamento != 'todos':
+            query = query.filter(Colaborador.departamento == filtro_departamento)
+        if filtro_status and filtro_status != 'todos':
+            query = query.filter(Colaborador.status == filtro_status)
+        
+        colaboradores = query.order_by(Colaborador.nome_completo).all()
+        
+        # Mapeamento de campos para cabeçalhos
+        mapeamento_campos = {
+            'matricula': 'Matrícula',
+            'nome_completo': 'Nome Completo',
+            'nome_social': 'Nome Social',
+            'cpf': 'CPF',
+            'rg': 'RG',
+            'data_nascimento': 'Data Nascimento',
+            'email_institucional': 'Email',
+            'celular': 'Celular',
+            'whatsapp': 'WhatsApp',
+            'tipo_vinculo': 'Vínculo',
+            'departamento': 'Departamento',
+            'lotacao': 'Lotação',
+            'data_ingresso': 'Data Ingresso',
+            'status': 'Status',
+            'atende_imprensa': 'Atende Imprensa',
+            'tipos_imprensa': 'Tipos Imprensa',
+            'assuntos_especializacao': 'Especialização',
+            'orcid': 'ORCID',
+            'curriculo_lattes': 'Lattes'
+        }
+        
+        # Criar PDF em memória
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, 
+                                rightMargin=72, leftMargin=72,
+                                topMargin=72, bottomMargin=72)
+        
+        elements = []
+        styles = getSampleStyleSheet()
+        
+        # Estilo para título
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=16,
+            spaceAfter=30,
+            alignment=1  # Center
+        )
+        
+        # Título do relatório
+        title = Paragraph(f"<b>RELATÓRIO DE COLABORADORES - CADNEV</b>", title_style)
+        elements.append(title)
+        
+        # Informações do relatório
+        info_style = ParagraphStyle(
+            'InfoStyle',
+            parent=styles['Normal'],
+            fontSize=10,
+            spaceAfter=12
+        )
+        
+        filtros_info = []
+        if filtro_vinculo != 'todos':
+            filtros_info.append(f"Vínculo: {filtro_vinculo}")
+        if filtro_departamento != 'todos':
+            filtros_info.append(f"Departamento: {filtro_departamento}")
+        if filtro_status != 'todos':
+            filtros_info.append(f"Status: {filtro_status}")
+        
+        info_text = f"<b>Data:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')} | "
+        info_text += f"<b>Total de registros:</b> {len(colaboradores)}"
+        if filtros_info:
+            info_text += f" | <b>Filtros:</b> {', '.join(filtros_info)}"
+        
+        elements.append(Paragraph(info_text, info_style))
+        elements.append(Spacer(1, 20))
+        
+        # Preparar dados da tabela
+        data = []
+        
+        # Cabeçalho
+        header = [mapeamento_campos.get(c, c) for c in campos_selecionados]
+        data.append(header)
+        
+        # Dados
+        for colab in colaboradores:
+            linha = []
+            for campo in campos_selecionados:
+                valor = getattr(colab, campo, '')
+                
+                if valor is None:
+                    valor = ''
+                elif isinstance(valor, bool):
+                    valor = 'Sim' if valor else 'Não'
+                elif isinstance(valor, (datetime, date)):
+                    valor = valor.strftime('%d/%m/%Y')
+                elif campo == 'cpf' and valor:
+                    valor = formatar_cpf(valor)
+                elif campo == 'celular' and valor:
+                    valor = formatar_telefone(valor)
+                
+                linha.append(str(valor))
+            data.append(linha)
+        
+        # Criar tabela
+        table = Table(data)
+        
+        # Estilo da tabela
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e40af')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('TOPPADDING', (0, 1), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
+        ]))
+        
+        elements.append(table)
+        
+        # Rodapé
+        elements.append(Spacer(1, 30))
+        footer_style = ParagraphStyle(
+            'FooterStyle',
+            parent=styles['Normal'],
+            fontSize=8,
+            alignment=1,
+            textColor=colors.grey
+        )
+        footer = Paragraph(f"Relatório gerado automaticamente pelo Sistema CADNEV - NEV USP", footer_style)
+        elements.append(footer)
+        
+        # Construir PDF
+        doc.build(elements)
+        
+        buffer.seek(0)
+        
+        # Registrar log
+        registrar_log('Gerou relatório PDF', 'Relatórios',
+                     f'Registros: {len(colaboradores)}, Filtros: {filtros_info}')
+        
+        # Retornar PDF para download
+        nome_arquivo = f"relatorio_cadnev_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        
+        return Response(
+            buffer.getvalue(),
+            mimetype='application/pdf',
+            headers={
+                'Content-Disposition': f'attachment; filename={nome_arquivo}',
+                'Content-Type': 'application/pdf'
+            }
+        )
+        
+    except Exception as e:
+        app.logger.error(f'Erro ao gerar PDF: {str(e)}')
+        flash(f'Erro ao gerar relatório PDF: {str(e)}', 'danger')
+        return redirect(url_for('relatorios'))
+        
 # ============================================================================
 # ROTAS DE CONFIGURAÇÕES
 # ============================================================================
@@ -1709,6 +2112,265 @@ def excluir_usuario(id):
     return redirect(url_for('listar_usuarios'))
 
 # ============================================================================
+# SISTEMA DE CONVITES E AUTO-CADASTRO
+# ============================================================================
+
+@app.route('/convidar', methods=['GET', 'POST'])
+@login_required
+@admin_required  # Apenas admin e superadmin
+def convidar_usuario():
+    """Página para gerar convites"""
+    if request.method == 'POST':
+        try:
+            cpf = request.form.get('cpf', '').strip()
+            email = request.form.get('email', '').strip().lower()
+            
+            # Validar CPF
+            if not validar_cpf(cpf):
+                flash('CPF inválido.', 'danger')
+                return render_template('convidar.html')
+            
+            # Validar email
+            if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
+                flash('Email inválido.', 'danger')
+                return render_template('convidar.html')
+            
+            # Verificar se já existe convite ativo
+            convite_existente = Convite.query.filter_by(cpf=cpf, usado=False).first()
+            if convite_existente and convite_existente.is_valido():
+                flash('Já existe um convite ativo para este CPF.', 'warning')
+                return render_template('convidar.html', convite=convite_existente)
+            
+            # Gerar código único
+            import uuid
+            import secrets
+            
+            codigo = f"CADNEV-{secrets.token_hex(3).upper()}"
+            token = secrets.token_urlsafe(32)
+            
+            # Criar convite
+            convite = Convite(
+                codigo=codigo,
+                cpf=cpf,
+                email=email,
+                token_confirmacao=token,
+                data_expiracao=datetime.utcnow() + timedelta(days=7),
+                criado_por=current_user.id
+            )
+            
+            db.session.add(convite)
+            db.session.commit()
+            
+            # Registrar log
+            registrar_log(f'Criou convite para {email}', 'Convites',
+                         f'Código: {codigo}, CPF: {cpf}')
+            
+            flash(f'✅ Convite criado com sucesso! Código: {codigo}', 'success')
+            return redirect(url_for('visualizar_convite', codigo=codigo))
+            
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f'Erro ao criar convite: {e}')
+            flash(f'Erro ao criar convite: {str(e)}', 'danger')
+    
+    return render_template('convidar.html')
+
+@app.route('/convite/<codigo>')
+@login_required
+@admin_required
+def visualizar_convite(codigo):
+    """Visualizar convite com QR Code"""
+    convite = Convite.query.filter_by(codigo=codigo).first_or_404()
+    
+    # Gerar URL para auto-cadastro
+    url_auto_cadastro = url_for('auto_cadastro', token=convite.token_confirmacao, _external=True)
+    
+    return render_template('visualizar_convite.html', 
+                         convite=convite, 
+                         url_auto_cadastro=url_auto_cadastro)
+
+@app.route('/auto-cadastro/<token>', methods=['GET', 'POST'])
+def auto_cadastro(token):
+    """Página pública para auto-cadastro"""
+    convite = Convite.query.filter_by(token_confirmacao=token).first()
+    
+    if not convite or not convite.is_valido():
+        return render_template('convite_expirado.html'), 404
+    
+    if request.method == 'POST':
+        try:
+            # Verificar se CPF e email correspondem
+            cpf_form = request.form.get('cpf', '').strip()
+            email_form = request.form.get('email', '').strip().lower()
+            
+            if cpf_form != convite.cpf or email_form != convite.email:
+                flash('Os dados informados não correspondem ao convite.', 'danger')
+                return render_template('auto_cadastro.html', convite=convite)
+            
+            # Gerar código de confirmação
+            import secrets
+            codigo_confirmacao = secrets.token_hex(3).upper()
+            
+            # Salvar código na sessão
+            session['codigo_confirmacao'] = codigo_confirmacao
+            session['convite_token'] = token
+            session['cpf'] = cpf_form
+            session['email'] = email_form
+            
+            # Enviar email com código (simulação - em produção configurar SMTP)
+            # TODO: Implementar envio de email real
+            
+            flash(f'✅ Código de confirmação enviado para {email_form}', 'success')
+            return redirect(url_for('confirmar_cadastro'))
+            
+        except Exception as e:
+            app.logger.error(f'Erro no auto-cadastro: {e}')
+            flash('Erro no processo de cadastro. Tente novamente.', 'danger')
+    
+    return render_template('auto_cadastro.html', convite=convite)
+
+@app.route('/confirmar-cadastro', methods=['GET', 'POST'])
+def confirmar_cadastro():
+    """Confirmação do cadastro com código"""
+    if 'codigo_confirmacao' not in session:
+        return redirect(url_for('auto_cadastro', token=session.get('convite_token', '')))
+    
+    if request.method == 'POST':
+        codigo_digitado = request.form.get('codigo', '').strip().upper()
+        codigo_correto = session.get('codigo_confirmacao', '')
+        
+        if codigo_digitado == codigo_correto:
+            # Criar usuário e colaborador
+            try:
+                cpf = session.get('cpf')
+                email = session.get('email')
+                token = session.get('convite_token')
+                
+                convite = Convite.query.filter_by(token_confirmacao=token).first()
+                
+                if not convite:
+                    flash('Convite inválido.', 'danger')
+                    return redirect(url_for('index'))
+                
+                # Marcar convite como usado
+                convite.usado = True
+                convite.usado_em = datetime.utcnow()
+                
+                # Criar colaborador
+                colaborador = Colaborador(
+                    nome_completo='NOVO COLABORADOR',  # Será atualizado pelo usuário
+                    cpf=cpf,
+                    email_institucional=email,
+                    celular='',  # Será preenchido pelo usuário
+                    data_ingresso=date.today(),
+                    tipo_vinculo='A DEFINIR',
+                    status='Ativo',
+                    cadastrado_por=None  # Auto-cadastro
+                )
+                
+                # Gerar matrícula
+                colaborador.matricula = gerar_matricula()
+                
+                db.session.add(colaborador)
+                db.session.commit()
+                
+                # Criar usuário
+                import uuid
+                username = f"user_{colaborador.id}_{uuid.uuid4().hex[:6]}"
+                
+                usuario = User(
+                    username=username,
+                    nome_completo='NOVO USUÁRIO',  # Será atualizado
+                    email=email,
+                    nivel_acesso='unico',
+                    ativo=True,
+                    senha_alterada=False
+                )
+                
+                # Gerar senha temporária
+                senha_temporaria = secrets.token_hex(8)
+                usuario.set_password(senha_temporaria)
+                
+                db.session.add(usuario)
+                db.session.commit()
+                
+                # Associar usuário ao colaborador (opcional - você pode precisar de um campo)
+                # Por enquanto, usaremos o email como link
+                
+                # Limpar sessão
+                session.pop('codigo_confirmacao', None)
+                session.pop('convite_token', None)
+                session.pop('cpf', None)
+                session.pop('email', None)
+                
+                # Registrar log
+                registrar_log(f'Auto-cadastro realizado para {email}', 'Auto-cadastro',
+                             f'Colaborador ID: {colaborador.id}, Usuário ID: {usuario.id}')
+                
+                # Enviar notificação para administradores
+                enviar_notificacao_admins(
+                    f'Novo auto-cadastro realizado',
+                    f'Colaborador: {colaborador.nome_completo} (ID: {colaborador.id})\n'
+                    f'Usuário: {usuario.username} (ID: {usuario.id})\n'
+                    f'CPF: {cpf}\nEmail: {email}'
+                )
+                
+                # Login automático
+                login_user(usuario)
+                
+                flash('✅ Cadastro confirmado! Complete seus dados e altere sua senha.', 'success')
+                return redirect(url_for('completar_cadastro', id=colaborador.id))
+                
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f'Erro ao confirmar cadastro: {e}')
+                flash('Erro ao processar cadastro. Contate o administrador.', 'danger')
+        else:
+            flash('Código de confirmação incorreto.', 'danger')
+    
+    return render_template('confirmar_cadastro.html')
+
+@app.route('/completar-cadastro/<int:id>')
+@login_required
+@unico_required
+def completar_cadastro(id):
+    """Página para completar cadastro após auto-cadastro"""
+    colaborador = Colaborador.query.get_or_404(id)
+    
+    # Verificar se o usuário atual tem permissão
+    if current_user.nivel_acesso != 'unico':
+        flash('Acesso não autorizado.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Verificar associação por email
+    if current_user.email.lower() != colaborador.email_institucional.lower():
+        flash('Você só pode editar seu próprio cadastro.', 'danger')
+        return redirect(url_for('meu_perfil'))
+    
+    return render_template('completar_cadastro.html', colaborador=colaborador)
+
+# FUNÇÃO AUXILIAR PARA ENVIAR NOTIFICAÇÕES
+def enviar_notificacao_admins(assunto, mensagem):
+    """Envia email para todos os administradores"""
+    try:
+        admins = User.query.filter(User.nivel_acesso.in_(['admin', 'superadmin'])).all()
+        
+        # Em produção, implementar envio de email real
+        # Por enquanto, apenas log
+        for admin in admins:
+            app.logger.info(f'Notificação para {admin.email}: {assunto} - {mensagem}')
+            
+            # Registrar log de notificação
+            registrar_log(f'Notificação enviada para {admin.email}', 
+                         'Notificações', 
+                         f'Assunto: {assunto}')
+        
+        return True
+    except Exception as e:
+        app.logger.error(f'Erro ao enviar notificações: {e}')
+        return False
+        
+# ============================================================================
 # ROTA DE DEBUG
 # ============================================================================
 @app.route('/debug/routes')
@@ -1791,6 +2453,94 @@ def serve_profile_photo(filename):
     
     return response
 
+@app.route('/uploads/user_photos/<filename>')
+def serve_user_photo(filename):
+    """Serve fotos de perfil de usuários com cache headers"""
+    from flask import send_from_directory
+    
+    foto_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'user_photos')
+    
+    if not os.path.exists(foto_dir):
+        os.makedirs(foto_dir, exist_ok=True)
+    
+    response = send_from_directory(foto_dir, filename)
+    
+    # Cache por 1 dia (86400 segundos)
+    response.headers['Cache-Control'] = 'public, max-age=86400'
+    
+    return response
+    
+@app.route('/logs-completos')
+@login_required
+@superadmin_required  # Apenas SuperAdministrador
+def logs_completos():
+    """Página completa de logs do sistema"""
+    try:
+        pagina = request.args.get('pagina', 1, type=int)
+        busca = request.args.get('busca', '')
+        nivel = request.args.get('nivel', '')
+        data_inicio = request.args.get('data_inicio', '')
+        data_fim = request.args.get('data_fim', '')
+        
+        query = Log.query
+        
+        # Aplicar filtros
+        if busca:
+            search_term = f'%{busca}%'
+            query = query.filter(
+                or_(
+                    Log.acao.ilike(search_term),
+                    Log.usuario_nome.ilike(search_term),
+                    Log.modulo.ilike(search_term),
+                    Log.detalhes.ilike(search_term)
+                )
+            )
+        
+        if nivel:
+            query = query.filter_by(nivel=nivel)
+        
+        if data_inicio:
+            try:
+                data_inicio_dt = datetime.strptime(data_inicio, '%Y-%m-%d')
+                query = query.filter(Log.data_hora >= data_inicio_dt)
+            except ValueError:
+                pass
+        
+        if data_fim:
+            try:
+                data_fim_dt = datetime.strptime(data_fim, '%Y-%m-%d') + timedelta(days=1)
+                query = query.filter(Log.data_hora < data_fim_dt)
+            except ValueError:
+                pass
+        
+        # Ordenar por data mais recente primeiro
+        logs = query.order_by(Log.data_hora.desc()).paginate(
+            page=pagina, per_page=50, error_out=False
+        )
+        
+        # Estatísticas
+        total_logs = Log.query.count()
+        logs_hoje = Log.query.filter(
+            Log.data_hora >= datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        ).count()
+        
+        # Níveis disponíveis
+        niveis = ['INFO', 'WARNING', 'ERROR', 'CRITICAL']
+        
+        return render_template('logs_completos.html',
+                             logs=logs,
+                             busca=busca,
+                             nivel=nivel,
+                             data_inicio=data_inicio,
+                             data_fim=data_fim,
+                             total_logs=total_logs,
+                             logs_hoje=logs_hoje,
+                             niveis=niveis)
+        
+    except Exception as e:
+        app.logger.error(f'Erro ao carregar logs: {e}')
+        flash('Erro ao carregar logs do sistema.', 'danger')
+        return redirect(url_for('dashboard'))
 # ============================================================================
 # ROTAS DE ERRO SIMPLIFICADAS (mantidas)
 # ============================================================================

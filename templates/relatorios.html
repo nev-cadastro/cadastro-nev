@@ -49,7 +49,6 @@
                     </div>
                 </div>
             </div>
-
             <div class="card border-0 shadow-sm bg-primary text-white">
                 <div class="card-body">
                     <h6 class="fw-bold mb-3"><i class="bi bi-file-earmark-arrow-down me-2"></i>Ação Final</h6>
@@ -61,6 +60,15 @@
                             <i class="bi bi-file-earmark-spreadsheet text-success me-2"></i>Exportar Planilha Excel
                         </button>
                     </div>
+					<div class="d-grid gap-2 mt-4">
+						<button type="submit" class="btn btn-primary" name="exportar" value="csv">
+							<i class="bi bi-filetype-csv me-2"></i> Gerar CSV
+						</button>
+						<button type="submit" formaction="{{ url_for('gerar_relatorio_pdf') }}" 
+								class="btn btn-danger" formmethod="post">
+							<i class="bi bi-filetype-pdf me-2"></i> Gerar PDF Profissional
+						</button>
+					</div>
                     <p class="smaller opacity-75 mt-3 mb-0 text-center">
                         O relatório será gerado instantaneamente com base nos campos selecionados ao lado.
                     </p>

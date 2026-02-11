@@ -1,159 +1,329 @@
 {% extends "base.html" %}
 
-{% block title %}Meu Perfil - NEV USP{% endblock %}
+{% block title %}Meu Perfil - CADNEV{% endblock %}
 
 {% block breadcrumb %}
-    <li class="breadcrumb-item active" aria-current="page">Meu Perfil</li>
+    <li class="breadcrumb-item active">Meu Perfil</li>
 {% endblock %}
 
 {% block page_title %}Meu Perfil{% endblock %}
-{% block page_subtitle %}Gerencie suas informações de acesso e credenciais do sistema.{% endblock %}
+{% block page_subtitle %}Gerencie suas informações pessoais e foto de perfil{% endblock %}
 
 {% block content %}
-<div class="row g-4">
-    <div class="col-lg-4 order-lg-2">
-        <div class="card border-0 shadow-sm mb-4 text-center">
+<div class="row">
+    <!-- Coluna da Foto -->
+    <div class="col-lg-4 mb-4">
+        <div class="card border-0 shadow-sm text-center">
             <div class="card-body py-4">
-                <div class="avatar-xl bg-primary bg-opacity-10 text-primary rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
-                    <i class="bi bi-person-circle fs-1"></i>
+                <!-- Foto do Perfil -->
+                {% if current_user.foto_perfil %}
+                <div class="mb-3">
+                    <img src="{{ url_for('serve_user_photo', filename=current_user.foto_perfil) }}" 
+                         alt="{{ current_user.nome_completo }}"
+                         class="rounded-circle border shadow"
+                         style="width: 180px; height: 180px; object-fit: cover;">
                 </div>
-                <h5 class="fw-bold mb-1">{{ usuario.nome_completo or usuario.username }}</h5>
-                <span class="badge bg-primary-subtle text-primary rounded-pill px-3 mb-3">{{ usuario.nivel_acesso|title }}</span>
+                {% else %}
+                <div class="avatar-lg bg-primary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" 
+                     style="width: 180px; height: 180px;">
+                    <i class="bi bi-person text-primary fs-1"></i>
+                </div>
+                {% endif %}
                 
-                <div class="list-group list-group-flush text-start small mt-3">
-                    <div class="list-group-item d-flex justify-content-between border-0 px-0">
-                        <span class="text-muted">Usuário ID:</span>
-                        <span class="fw-bold">#{{ usuario.id }}</span>
+                <h4 class="fw-bold mb-1">{{ current_user.nome_completo }}</h4>
+                <p class="text-muted mb-3">@{{ current_user.username }}</p>
+                
+                <div class="mb-4">
+                    {% if current_user.nivel_acesso == 'superadmin' %}
+                        <span class="badge bg-danger px-3 py-2 rounded-pill">
+                            <i class="bi bi-shield-fill-check me-1"></i> SuperAdministrador
+                        </span>
+                    {% elif current_user.nivel_acesso == 'admin' %}
+                        <span class="badge bg-warning px-3 py-2 rounded-pill">
+                            <i class="bi bi-shield-fill me-1"></i> Administrador
+                        </span>
+                    {% else %}
+                        <span class="badge bg-info px-3 py-2 rounded-pill">
+                            <i class="bi bi-person-fill me-1"></i> Único
+                        </span>
+                    {% endif %}
+                </div>
+                
+                <!-- Sistema de Upload de Foto -->
+                <div class="border-top pt-4">
+                    <div class="mb-3">
+                        <button class="btn btn-outline-primary btn-sm w-100 mb-2" onclick="document.getElementById('fileInputUser').click()">
+                            <i class="bi bi-upload me-1"></i> Escolher Arquivo
+                        </button>
+                        <button class="btn btn-outline-success btn-sm w-100 mb-2" id="btnCameraUser" onclick="iniciarCameraUser()">
+                            <i class="bi bi-camera me-1"></i> Usar Câmera
+                        </button>
+                        
+                        <form action="{{ url_for('upload_foto_usuario', id=current_user.id) }}" 
+                              method="POST" 
+                              enctype="multipart/form-data"
+                              id="uploadFormUser">
+                            <input type="file" 
+                                   class="form-control d-none" 
+                                   name="foto_perfil" 
+                                   id="fileInputUser"
+                                   accept="image/*"
+                                   onchange="document.getElementById('uploadFormUser').submit()">
+                            <input type="hidden" name="foto_base64" id="fotoBase64User">
+                        </form>
+                        
+                        <div id="cameraContainerUser" class="d-none mt-3">
+                            <video id="cameraPreviewUser" autoplay playsinline style="width: 100%; border-radius: 8px;"></video>
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-success btn-sm flex-fill" onclick="capturarFotoUser()">
+                                    <i class="bi bi-camera-fill"></i> Capturar
+                                </button>
+                                <button class="btn btn-danger btn-sm flex-fill" onclick="cancelarCameraUser()">
+                                    <i class="bi bi-x"></i> Cancelar
+                                </button>
+                            </div>
+                            <canvas id="canvasUser" class="d-none"></canvas>
+                        </div>
                     </div>
-                    <div class="list-group-item d-flex justify-content-between border-0 px-0">
-                        <span class="text-muted">Membro desde:</span>
-                        <span class="fw-bold">{{ usuario.data_cadastro.strftime('%d/%m/%Y') if usuario.data_cadastro else '---' }}</span>
-                    </div>
-                    <div class="list-group-item d-flex justify-content-between border-0 px-0">
-                        <span class="text-muted">Último login:</span>
-                        <span class="fw-bold text-truncate ms-2">{{ usuario.ultimo_acesso.strftime('%d/%m/%Y %H:%M') if usuario.ultimo_acesso else 'Primeiro acesso' }}</span>
-                    </div>
+                    
+                    {% if current_user.foto_perfil %}
+                    <form action="{{ url_for('remover_foto_usuario', id=current_user.id) }}" 
+                          method="POST"
+                          onsubmit="return confirm('Remover sua foto de perfil?')">
+                        <button class="btn btn-outline-danger btn-sm w-100" type="submit">
+                            <i class="bi bi-trash me-1"></i> Remover Foto
+                        </button>
+                    </form>
+                    {% endif %}
+                    
+                    <small class="text-muted d-block mt-2">JPG, PNG ou GIF (max 5MB)</small>
                 </div>
             </div>
         </div>
-
-        <div class="card border-0 shadow-sm bg-dark text-white">
+        
+        <!-- Informações da Conta -->
+        <div class="card border-0 shadow-sm mt-4">
             <div class="card-body">
-                <h6 class="fw-bold mb-3 d-flex align-items-center text-info">
-                    <i class="bi bi-shield-check me-2"></i>Segurança da Conta
-                </h6>
-                <ul class="list-unstyled mb-0 small opacity-75">
-                    <li class="mb-2"><i class="bi bi-dot me-1"></i>Sua senha é criptografada.</li>
-                    <li class="mb-2"><i class="bi bi-dot me-1"></i>Troque sua senha a cada 90 dias.</li>
-                    <li><i class="bi bi-dot me-1"></i>Evite usar senhas de outros sites.</li>
-                </ul>
+                <h6 class="fw-bold mb-3"><i class="bi bi-info-circle me-2"></i>Informações da Conta</h6>
+                <div class="mb-2">
+                    <small class="text-muted d-block">Data de Criação</small>
+                    <span class="fw-medium">{{ current_user.data_cadastro.strftime('%d/%m/%Y') }}</span>
+                </div>
+                <div class="mb-2">
+                    <small class="text-muted d-block">Último Acesso</small>
+                    <span class="fw-medium">
+                        {% if current_user.ultimo_login %}
+                            {{ current_user.ultimo_login.strftime('%d/%m/%Y %H:%M') }}
+                        {% else %}
+                            <span class="text-muted">Nunca</span>
+                        {% endif %}
+                    </span>
+                </div>
+                <div>
+                    <small class="text-muted d-block">Status da Senha</small>
+                    <span class="badge {{ 'bg-success' if current_user.senha_alterada else 'bg-warning' }}">
+                        {{ 'Atualizada' if current_user.senha_alterada else 'Necessita alteração' }}
+                    </span>
+                </div>
             </div>
         </div>
     </div>
-
-    <div class="col-lg-8 order-lg-1">
+    
+    <!-- Coluna de Dados Editáveis -->
+    <div class="col-lg-8">
         <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white py-3 border-bottom-0">
-                <h5 class="card-title mb-0 fw-bold text-primary">Configurações de Perfil</h5>
-            </div>
-            <div class="card-body p-4 pt-0">
-                <form method="POST" action="{{ url_for('meu_perfil') }}" id="formPerfil" novalidate>
+            <div class="card-body">
+                <form method="POST" id="formMeuPerfil">
+                    <h5 class="fw-bold mb-4 text-primary"><i class="bi bi-person-lines-fill me-2"></i>Dados Pessoais</h5>
                     
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
-                            <label class="form-label small fw-bold text-muted text-uppercase">Nome de Usuário</label>
-                            <div class="input-group">
-                                <span class="input-group-text bg-light border-0"><i class="bi bi-at"></i></span>
-                                <input type="text" class="form-control bg-light border-0" value="{{ usuario.username }}" readonly>
-                            </div>
-                            <div class="form-text fs-xs">Este nome é único e não pode ser alterado.</div>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold text-muted text-uppercase">Permissão</label>
-                            <input type="text" class="form-control bg-light border-0" value="{{ usuario.nivel_acesso|title }}" readonly>
-                        </div>
-                    </div>
-
-                    <div class="row g-3 mb-4 pt-4 border-top">
-                        <div class="col-12">
                             <label for="nome_completo" class="form-label fw-bold">Nome Completo</label>
-                            <input type="text" class="form-control" id="nome_completo" name="nome_completo"
-                                   value="{{ usuario.nome_completo if usuario.nome_completo else '' }}" required>
-                        </div>
-                        <div class="col-12">
-                            <label for="email" class="form-label fw-bold">E-mail para Notificações</label>
-                            <input type="email" class="form-control" id="email" name="email"
-                                   value="{{ usuario.email if usuario.email else '' }}" required>
-                        </div>
-                    </div>
-
-                    <div class="row g-3 p-4 bg-light rounded-3 mb-4">
-                        <div class="col-12">
-                            <h6 class="fw-bold mb-1"><i class="bi bi-key me-2"></i>Alterar Senha</h6>
-                            <p class="text-muted small mb-3">Se desejar manter a senha atual, deixe os campos abaixo em branco.</p>
+                            <input type="text" class="form-control" id="nome_completo" name="nome_completo" 
+                                   value="{{ current_user.nome_completo }}" required>
                         </div>
                         <div class="col-md-6">
-                            <label for="nova_senha" class="form-label small fw-bold text-uppercase">Nova Senha</label>
-                            <input type="password" class="form-control" id="nova_senha" name="nova_senha" placeholder="Mínimo 6 caracteres">
+                            <label for="email" class="form-label fw-bold">E-mail</label>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   value="{{ current_user.email }}" required>
                         </div>
                         <div class="col-md-6">
-                            <label for="confirmar_senha" class="form-label small fw-bold text-uppercase">Confirmar Nova Senha</label>
-                            <input type="password" class="form-control" id="confirmar_senha" name="confirmar_senha" placeholder="Repita a senha">
+                            <label for="username" class="form-label fw-bold">Nome de Usuário</label>
+                            <input type="text" class="form-control bg-light" id="username" 
+                                   value="{{ current_user.username }}" readonly>
+                            <small class="text-muted">Não pode ser alterado</small>
                         </div>
-                        <div class="col-12 d-none" id="senhaFeedback">
-                            <div class="alert alert-warning py-2 small mb-0 mt-2">
-                                <i class="bi bi-exclamation-triangle me-2"></i>As senhas digitadas não coincidem.
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Nível de Acesso</label>
+                            <div class="form-control bg-light">
+                                {% if current_user.nivel_acesso == 'superadmin' %}
+                                    SuperAdministrador
+                                {% elif current_user.nivel_acesso == 'admin' %}
+                                    Administrador
+                                {% else %}
+                                    Único
+                                {% endif %}
                             </div>
                         </div>
                     </div>
-
-                    <div class="d-flex justify-content-between align-items-center pt-2">
+                    
+                    <h5 class="fw-bold mb-4 text-primary border-top pt-4"><i class="bi bi-shield-lock me-2"></i>Alterar Senha</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label for="nova_senha" class="form-label">Nova Senha (opcional)</label>
+                            <input type="password" class="form-control" id="nova_senha" name="nova_senha" 
+                                   placeholder="Deixe em branco para manter a atual">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="confirmar_senha" class="form-label">Confirmar Senha</label>
+                            <input type="password" class="form-control" id="confirmar_senha" name="confirmar_senha">
+                        </div>
+                        <div class="col-12">
+                            <div class="alert alert-info py-2 small mb-0">
+                                <i class="bi bi-info-circle me-2"></i>
+                                Para alterar a senha, preencha ambos os campos acima.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between border-top pt-4">
                         <a href="{{ url_for('dashboard') }}" class="btn btn-light px-4">Cancelar</a>
-                        <button type="submit" class="btn btn-primary px-5 shadow-sm">
-                            <i class="bi bi-save me-2"></i>Atualizar Perfil
+                        <button type="submit" class="btn btn-primary px-5">
+                            <i class="bi bi-save me-2"></i> Salvar Alterações
                         </button>
                     </div>
                 </form>
             </div>
         </div>
+        
+        <!-- Se o usuário for do tipo "Único" e tiver colaborador associado -->
+        {% if current_user.nivel_acesso == 'unico' %}
+            {% set colaborador = colaborador_associado %}
+            {% if colaborador %}
+            <div class="card border-0 shadow-sm mt-4">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0 fw-bold text-primary">
+                        <i class="bi bi-person-badge me-2"></i>Meus Dados como Colaborador
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="small text-muted d-block">CPF</label>
+                            <p class="fw-medium">{{ formatar_cpf(colaborador.cpf) }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small text-muted d-block">Matrícula</label>
+                            <p class="fw-medium">{{ colaborador.matricula or '---' }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small text-muted d-block">Tipo de Vínculo</label>
+                            <p class="fw-medium">{{ colaborador.tipo_vinculo or '---' }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small text-muted d-block">Departamento</label>
+                            <p class="fw-medium">{{ colaborador.departamento or '---' }}</p>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <a href="{{ url_for('ver_colaborador', id=colaborador.id) }}" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-eye me-1"></i> Ver Perfil Completo
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        {% endif %}
     </div>
 </div>
-{% endblock %}
 
-{% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('formPerfil');
-    const novaSenha = document.getElementById('nova_senha');
-    const confirmarSenha = document.getElementById('confirmar_senha');
-    const feedback = document.getElementById('senhaFeedback');
+// Funções para câmera do usuário
+let cameraStreamUser = null;
 
-    form.addEventListener('submit', function(e) {
-        // Validação de Senha
-        if (novaSenha.value || confirmarSenha.value) {
-            if (novaSenha.value.length < 6) {
-                e.preventDefault();
-                alert('A nova senha deve ter no mínimo 6 caracteres.');
-                novaSenha.focus();
-                return;
-            }
+function iniciarCameraUser() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('Seu navegador não suporta acesso à câmera.');
+        return;
+    }
+    
+    document.getElementById('cameraContainerUser').classList.remove('d-none');
+    document.getElementById('btnCameraUser').classList.add('d-none');
+    
+    navigator.mediaDevices.getUserMedia({ 
+        video: { 
+            facingMode: 'user',
+            width: { ideal: 800 },
+            height: { ideal: 600 }
+        } 
+    })
+    .then(stream => {
+        cameraStreamUser = stream;
+        const video = document.getElementById('cameraPreviewUser');
+        video.srcObject = stream;
+    })
+    .catch(err => {
+        console.error('Erro ao acessar câmera:', err);
+        alert('Não foi possível acessar a câmera. Verifique as permissões.');
+        cancelarCameraUser();
+    });
+}
 
-            if (novaSenha.value !== confirmarSenha.value) {
-                e.preventDefault();
-                feedback.classList.remove('d-none');
-                confirmarSenha.classList.add('is-invalid');
-                return;
-            }
+function capturarFotoUser() {
+    const video = document.getElementById('cameraPreviewUser');
+    const canvas = document.getElementById('canvasUser');
+    const ctx = canvas.getContext('2d');
+    
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    const base64Image = canvas.toDataURL('image/jpeg', 0.8);
+    
+    cancelarCameraUser();
+    
+    document.getElementById('fotoBase64User').value = base64Image;
+    document.getElementById('uploadFormUser').submit();
+}
+
+function cancelarCameraUser() {
+    if (cameraStreamUser) {
+        cameraStreamUser.getTracks().forEach(track => track.stop());
+        cameraStreamUser = null;
+    }
+    
+    document.getElementById('cameraContainerUser').classList.add('d-none');
+    document.getElementById('btnCameraUser').classList.remove('d-none');
+    document.getElementById('cameraPreviewUser').srcObject = null;
+}
+
+// Validação do formulário
+document.getElementById('formMeuPerfil').addEventListener('submit', function(e) {
+    const novaSenha = document.getElementById('nova_senha').value;
+    const confirmarSenha = document.getElementById('confirmar_senha').value;
+    
+    if (novaSenha || confirmarSenha) {
+        if (novaSenha.length < 6) {
+            e.preventDefault();
+            alert('A nova senha deve ter no mínimo 6 caracteres.');
+            return;
         }
-    });
-
-    // Esconder feedback de erro ao digitar
-    [novaSenha, confirmarSenha].forEach(el => {
-        el.addEventListener('input', () => {
-            feedback.classList.add('d-none');
-            confirmarSenha.classList.remove('is-invalid');
-        });
-    });
+        if (novaSenha !== confirmarSenha) {
+            e.preventDefault();
+            alert('As senhas não coincidem. Por favor, verifique.');
+            return;
+        }
+    }
 });
 </script>
+
+<style>
+.avatar-lg {
+    transition: transform 0.3s ease;
+}
+.avatar-lg:hover {
+    transform: scale(1.05);
+}
+</style>
 {% endblock %}

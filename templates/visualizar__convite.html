@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Convite {{ convite.codigo }} - CADNEV{% endblock %}
+
+{% block breadcrumb %}
+    <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+    <li class="breadcrumb-item"><a href="{{ url_for('convidar_usuario') }}">Convidar</a></li>
+    <li class="breadcrumb-item active">{{ convite.codigo }}</li>
+{% endblock %}
+
+{% block page_title %}Convite {{ convite.codigo }}{% endblock %}
+{% block page_subtitle %}Compartilhe este convite para permitir o auto-cadastro{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm text-center">
+            <div class="card-body py-5">
+                <div class="mb-4">
+                    <div class="bg-primary bg-opacity-10 d-inline-flex p-3 rounded-circle mb-3">
+                        <i class="bi bi-envelope-check-fill text-primary fs-1"></i>
+                    </div>
+                    <h3 class="fw-bold mb-2">Convite para Auto-Cadastro</h3>
+                    <p class="text-muted">Compartilhe este convite para permitir que a pessoa se cadastre no sistema</p>
+                </div>
+                
+                <!-- QR Code -->
+                <div class="mb-4">
+                    <div id="qrcode" class="d-inline-block p-3 bg-white border rounded-3"></div>
+                </div>
+                
+                <!-- Informações do Convite -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="bg-light p-3 rounded-3">
+                            <label class="small text-muted d-block mb-1">Código do Convite</label>
+                            <span class="fs-4 fw-bold text-primary">{{ convite.codigo }}</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="bg-light p-3 rounded-3">
+                            <label class="small text-muted d-block mb-1">Válido até</label>
+                            <span class="fw-medium">{{ convite.data_expiracao.strftime('%d/%m/%Y') }}</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="bg-light p-3 rounded-3">
+                            <label class="small text-muted d-block mb-1">CPF</label>
+                            <span class="fw-medium">{{ formatar_cpf(convite.cpf) }}</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="bg-light p-3 rounded-3">
+                            <label class="small text-muted d-block mb-1">Email</label>
+                            <span class="fw-medium">{{ convite.email }}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Link de Acesso -->
+                <div class="mb-4">
+                    <label class="small text-muted d-block mb-2">Link de Acesso</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="linkConvite" 
+                               value="{{ url_auto_cadastro }}" readonly>
+                        <button class="btn btn-outline-secondary" type="button" 
+                                onclick="copiarLink()">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                    <small class="text-muted">Compartilhe este link ou o QR Code acima</small>
+                </div>
+                
+                <!-- Status -->
+                <div class="alert {{ 'alert-success' if convite.is_valido() else 'alert-danger' }}">
+                    <i class="bi {{ 'bi-check-circle-fill' if convite.is_valido() else 'bi-x-circle-fill' }} me-2"></i>
+                    {% if convite.usado %}
+                        Este convite foi utilizado em {{ convite.usado_em.strftime('%d/%m/%Y %H:%M') }}
+                    {% elif convite.is_valido() %}
+                        Convite <strong>válido</strong> e pronto para uso
+                    {% else %}
+                        Convite <strong>expirado</strong>
+                    {% endif %}
+                </div>
+                
+                <div class="d-flex justify-content-center gap-3 mt-4">
+                    <a href="{{ url_for('convidar_usuario') }}" class="btn btn-light px-4">
+                        <i class="bi bi-arrow-left me-1"></i> Voltar
+                    </a>
+                    <button class="btn btn-primary px-4" onclick="imprimirConvite()">
+                        <i class="bi bi-printer me-1"></i> Imprimir Convite
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Gerar QR Code
+new QRCode(document.getElementById("qrcode"), {
+    text: "{{ url_auto_cadastro }}",
+    width: 200,
+    height: 200,
+    colorDark : "#000000",
+    colorLight : "#ffffff",
+    correctLevel : QRCode.CorrectLevel.H
+});
+
+// Copiar link
+function copiarLink() {
+    const input = document.getElementById('linkConvite');
+    input.select();
+    input.setSelectionRange(0, 99999); // Para mobile
+    
+    navigator.clipboard.writeText(input.value).then(() => {
+        // Mostrar feedback
+        const btn = event.target.closest('button');
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-check"></i> Copiado!';
+        btn.classList.remove('btn-outline-secondary');
+        btn.classList.add('btn-success');
+        
+        setTimeout(() => {
+            btn.innerHTML = originalHTML;
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-outline-secondary');
+        }, 2000);
+    });
+}
+
+// Imprimir convite
+function imprimirConvite() {
+    window.print();
+}
+
+// Adicionar CSS para impressão
+const style = document.createElement('style');
+style.textContent = `
+    @media print {
+        .navbar, .sidebar, .footer, .breadcrumb, .page_actions, .btn {
+            display: none !important;
+        }
+        .card {
+            border: none !important;
+            box-shadow: none !important;
+        }
+        body {
+            padding: 20px !important;
+        }
+    }
+`;
+document.head.appendChild(style);
+</script>
+{% endblock %}
