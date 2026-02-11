@@ -910,24 +910,24 @@ def novo_colaborador():
                         }), 400
 
                     # Preparar dados para o banco
-                    dados_db = {
-                        'nome_completo': sanitize_input(dados_finais.get('nome_completo', ''), upper_case=True),
-                        'nome_social': sanitize_input(dados_finais.get('nome_social', ''), upper_case=True),
-                        'rg': sanitize_input(dados_finais.get('rg', '')),
-                        'cpf': cpf,
-                        'email_institucional': sanitize_input(dados_finais.get('email_institucional', '')).lower(),
-                        'celular': formatar_telefone(sanitize_input(dados_finais.get('celular', ''))),
-                        'whatsapp': dados_finais.get('whatsapp', False),
-                        'tipo_vinculo': dados_finais.get('tipo_vinculo', ''),
-                        'departamento': sanitize_input(dados_finais.get('departamento', '')),
-                        'atende_imprensa': dados_finais.get('atende_imprensa', False),
-                        'tipos_imprensa': dados_finais.get('tipos_imprensa', ''),
-                        'assuntos_especializacao': sanitize_input(dados_finais.get('assuntos_especializacao', '')),
-                        'curriculo_lattes': sanitize_input(dados_finais.get('curriculo_lattes', '')),
-                        'orcid': sanitize_input(dados_finais.get('orcid', '')),
-                        'observacoes': sanitize_input(dados_finais.get('observacoes', '')),
-                        'status': 'Ativo',
-                        'cadastrado_por': current_user.id
+                        dados_db = {
+                            'nome_completo': sanitize_input(dados_finais.get('nome_completo', ''), upper_case=True),
+                            'nome_social': sanitize_input(dados_finais.get('nome_social', ''), upper_case=True),
+                            'rg': sanitize_input(dados_finais.get('rg', '')),
+                            'cpf': cpf,
+                            'email_institucional': sanitize_input(dados_finais.get('email_institucional', '')).lower(),
+                            'celular': formatar_telefone(sanitize_input(dados_finais.get('celular', ''))),
+                            'whatsapp': dados_finais.get('whatsapp', False),
+                            'tipo_vinculo': dados_finais.get('tipo_vinculo', ''),
+                            'departamento': sanitize_input(dados_finais.get('departamento', '')),
+                            'atende_imprensa': dados_finais.get('atende_imprensa', False),
+                            'tipos_imprensa': dados_finais.get('tipos_imprensa', ''),
+                            'assuntos_especializacao': sanitize_input(dados_finais.get('assuntos_especializacao', '')),
+                            'curriculo_lattes': sanitize_input(dados_finais.get('curriculo_lattes', '')),
+                            'orcid': sanitize_input(dados_finais.get('orcid', '')),
+                            'observacoes': sanitize_input(dados_finais.get('observacoes', '')),
+                            'status': 'Ativo',
+                            'cadastrado_por': current_user.id
                     }
 
                     # Processar datas
