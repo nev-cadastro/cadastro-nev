@@ -3046,17 +3046,23 @@ def init_db():
                 if not admin:
                     admin = User(
                         username='admin',
-                        nome_completo='Administrador NEV',
+                        nome_completo='ADMINISTRADOR NEV',
                         email='admin@nev.usp.br',
-                        nivel_acesso='admin',
+                        nivel_acesso='superadmin',  # ← CORRIGIDO!
                         ativo=True
                     )
-                    admin.set_password('AdminNEV2024')
+                    admin.set_password('AdminNEV2024')  # Senha padrão
                     db.session.add(admin)
                     db.session.commit()
-                    print('✅ Usuário admin criado')
+                    print('✅ Usuário superadmin criado')
                 else:
-                    print('✅ Usuário admin já existe')
+                    # ATUALIZAR se existir com nível errado
+                    if admin.nivel_acesso != 'superadmin':
+                        admin.nivel_acesso = 'superadmin'
+                        db.session.commit()
+                        print('✅ Usuário admin atualizado para superadmin')
+                    else:
+                        print('✅ Usuário superadmin já existe')
                 
                 app.logger.info('✅ Banco PostgreSQL inicializado!')
             else:
@@ -3068,17 +3074,23 @@ def init_db():
                 if not admin:
                     admin = User(
                         username='admin',
-                        nome_completo='Administrador NEV',
+                        nome_completo='ADMINISTRADOR NEV',
                         email='admin@nev.usp.br',
-                        nivel_acesso='admin',
+                        nivel_acesso='superadmin',  # ← CORRIGIDO!
                         ativo=True
                     )
                     admin.set_password('AdminNEV2024')
                     db.session.add(admin)
                     db.session.commit()
-                    print('✅ Usuário admin criado (SQLite)')
+                    print('✅ Usuário superadmin criado (SQLite)')
                 else:
-                    print('✅ Usuário admin já existe (SQLite)')
+                    # ATUALIZAR se existir com nível errado
+                    if admin.nivel_acesso != 'superadmin':
+                        admin.nivel_acesso = 'superadmin'
+                        db.session.commit()
+                        print('✅ Usuário admin atualizado para superadmin')
+                    else:
+                        print('✅ Usuário superadmin já existe (SQLite)')
                 
                 app.logger.info('✅ Banco SQLite inicializado!')
             
@@ -3088,8 +3100,6 @@ def init_db():
         except Exception as e:
             app.logger.error(f'❌ Erro ao inicializar banco: {e}')
             print(f'❌ ERRO CRÍTICO: {e}')
-            # Não levantar exceção para não quebrar o app
-
 
 # ============================================================================
 # ROTA PARA MIGRAÇÃO SEGURA (SEM APAGAR DADOS)
