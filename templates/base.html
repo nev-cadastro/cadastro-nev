@@ -178,12 +178,20 @@
                     <i class="bi bi-people"></i> Colaboradores
                 </a>
 
-                {% if current_user.nivel_acesso == 'admin' %}
-                <div class="mt-4 px-4 small text-uppercase opacity-50">Admin</div>
-                <a href="{{ url_for('listar_usuarios') }}" class="nav-link {{ 'active' if 'usuario' in request.endpoint }}">
-                    <i class="bi bi-shield-lock"></i> Usuários
-                </a>
-                {% endif %}
+                 {% if current_user.nivel_acesso in ['admin', 'superadmin'] %}
+                            <div class="mt-4 px-4 small text-uppercase opacity-50">Administração</div>
+                            <a href="{{ url_for('listar_usuarios') }}" class="nav-link {{ 'active' if 'usuario' in request.endpoint }}">
+                                <i class="bi bi-shield-lock"></i> Usuários
+                            </a>
+                            {% endif %}
+                            {% if current_user.nivel_acesso == 'superadmin' %}
+                            <a href="{{ url_for('logs_completos') }}" class="nav-link {{ 'active' if request.endpoint == 'logs_completos' }}">
+                                <i class="bi bi-list-check"></i> Logs do Sistema
+                            </a>
+                            <a href="{{ url_for('convidar_usuario') }}" class="nav-link {{ 'active' if request.endpoint == 'convidar_usuario' }}">
+                                <i class="bi bi-envelope-plus"></i> Convidar Usuário
+                            </a>
+                            {% endif %}
                 {% if current_user.nivel_acesso == 'admin' %}
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('criar_backup') }}">

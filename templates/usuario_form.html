@@ -43,9 +43,9 @@
                             <label for="nivel_acesso" class="form-label fw-bold required">Nível de Acesso</label>
                             <select class="form-select" id="nivel_acesso" name="nivel_acesso" required>
                                 <option value="" selected disabled>Selecione...</option>
-                                <option value="colaborador" {% if dados and dados.nivel_acesso == 'colaborador' %}selected{% endif %}>Colaborador (Visualização)</option>
-                                <option value="supervisor" {% if dados and dados.nivel_acesso == 'supervisor' %}selected{% endif %}>Supervisor (Operação)</option>
-                                <option value="admin" {% if dados and dados.nivel_acesso == 'admin' %}selected{% endif %}>Administrador (Total)</option>
+                                <option value="unico" {% if dados and dados.nivel_acesso == 'unico' %}selected{% endif %}>Único (Auto-cadastro)</option>
+                                    <option value="admin" {% if dados and dados.nivel_acesso == 'admin' %}selected{% endif %}>Administrador</option>
+                                    <option value="superadmin" {% if dados and dados.nivel_acesso == 'superadmin' %}selected{% endif %}>SuperAdministrador</option>
                             </select>
                         </div>
 

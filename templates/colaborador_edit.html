@@ -212,20 +212,16 @@
                             <h5 class="mb-0 fw-bold">Informações Acadêmicas</h5>
                         </div>
 
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label for="curriculo_lattes" class="form-label fw-medium">Currículo Lattes</label>
-                                <input type="url" id="curriculo_lattes" name="curriculo_lattes" class="form-control" value="{{ colaborador.curriculo_lattes or '' }}">
+                         <div class="row">
+                                <div class="col-md-6">
+                                    <label for="curriculo_lattes" class="form-label fw-medium">Currículo Lattes</label>
+                                    <input type="url" id="curriculo_lattes" name="curriculo_lattes" class="form-control" value="{{ colaborador.curriculo_lattes or '' }}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="orcid" class="form-label fw-medium">ORCID</label>
+                                    <input type="text" id="orcid" name="orcid" class="form-control" value="{{ colaborador.orcid or '' }}">
+                                </div>
                             </div>
-                            <div class="col-md-6">
-                                <label for="orcid" class="form-label fw-medium">ORCID</label>
-                                <input type="text" id="orcid" name="orcid" class="form-control" value="{{ colaborador.orcid or '' }}">
-                            </div>
-                            <div class="col-12">
-                                <label for="linkedin" class="form-label fw-medium">LinkedIn</label>
-                                <input type="url" id="linkedin" name="linkedin" class="form-control" value="{{ colaborador.linkedin or '' }}">
-                            </div>
-                        </div>
                     </div>
 
                     <div class="mb-5">
@@ -311,29 +307,30 @@
                     fetch(`/api/buscar-cep/${cep}`)
                         .then(response => response.json())
                         .then(data => {
-                            if (data.success) {
-                                const endereco = data.endereco;
+                             if (data.success && data.endereco) {
+                        const endereco = data.endereco;
 
-                                // Preencher automaticamente os campos
-                                document.getElementById('endereco').value = endereco.logradouro || '';
-                                document.getElementById('bairro').value = endereco.bairro || '';
-                                document.getElementById('cidade').value = endereco.cidade || '';
-                                document.getElementById('estado').value = endereco.estado || '';
+                        // Preencher automaticamente os campos
+                        document.getElementById('endereco').value = endereco.logradouro || '';
+                        document.getElementById('bairro').value = endereco.bairro || '';
+                        document.getElementById('cidade').value = endereco.cidade || '';
+                        document.getElementById('estado').value = endereco.estado || '';
 
-                                // Preencher complemento se existir
-                                if (endereco.complemento) {
-                                    document.getElementById('complemento').value = endereco.complemento;
-                                }
+                        // Preencher complemento se existir
+                        if (endereco.complemento) {
+                            document.getElementById('complemento').value = endereco.complemento;
+                        }
 
-                                // Focar no campo número após buscar
-                                document.getElementById('numero').focus();
+                        // Focar no campo número após buscar
+                        document.getElementById('numero').focus();
+                        
+                        showToast('Endereço encontrado via ViaCEP!', 'success');
 
-
-                            } else {
-                                showToast('', 'warning');
-                                document.getElementById('endereco').focus();
-                            }
-                        })
+                    } else {
+                        showToast(data.message || 'CEP não encontrado. Preencha manualmente.', 'warning');
+                        document.getElementById('endereco').focus();
+                    }
+						)
                         .catch(error => {
                             console.error('Erro ao buscar CEP:', error);
                             showToast('Erro ao buscar CEP. Tente novamente.', 'danger');

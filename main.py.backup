@@ -35,16 +35,6 @@ from flask_migrate import Migrate
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import or_, func, desc
 
-
-# ============================================================================
-# CONSTANTES DO SISTEMA
-# ============================================================================
-NIVEIS_ACESSO = {
-    'unico': 'Único',
-    'admin': 'Administrador',
-    'superadmin': 'SuperAdministrador'
-}
-
 # ============================================================================
 # CONFIGURAÇÃO DA APLICAÇÃO OTIMIZADA
 # ============================================================================
@@ -153,13 +143,12 @@ def gerar_matricula() -> str:
     except Exception:
         return f'NEV{ano}{int(datetime.now().timestamp()) % 1000:04d}'
 
-def sanitize_input(texto: Optional[str], upper_case: bool = False) -> Optional[str]:
+def sanitize_input(texto: Optional[str]) -> Optional[str]:
     """Sanitização eficiente contra XSS"""
     if not texto or not isinstance(texto, str):
         return texto
     texto = re.sub(r'<script.*?>.*?</script>', '', texto, flags=re.IGNORECASE | re.DOTALL)
-    texto = texto.strip()
-    return texto.upper() if upper_case else texto
+    return texto.strip()
 
 def registrar_log(acao: str, modulo: Optional[str] = None,
                  detalhes: Optional[str] = None, nivel: str = 'INFO') -> bool:
@@ -315,40 +304,24 @@ def delete_profile_photos(filename, thumb_filename):
 # ============================================================================
 # DECORATORS OTIMIZADOS (do v2.6)
 # ============================================================================
-def superadmin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or current_user.nivel_acesso != 'superadmin':
-            flash('Acesso restrito a SuperAdministradores.', 'danger')
-            return redirect(url_for('dashboard'))
-        return f(*args, **kwargs)
-    return decorated_function
-
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or current_user.nivel_acesso not in ['admin', 'superadmin']:
-            flash('Acesso restrito a Administradores e SuperAdministradores.', 'danger')
+        if not current_user.is_authenticated or current_user.nivel_acesso != 'admin':
+            flash('Acesso restrito a administradores.', 'danger')
             return redirect(url_for('dashboard'))
         return f(*args, **kwargs)
     return decorated_function
 
-def unico_required(f):
+def supervisor_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated:
-            flash('Acesso não autorizado.', 'danger')
-            return redirect(url_for('login'))
-        
-        # Usuário único só pode acessar seu próprio perfil
-        if current_user.nivel_acesso == 'unico':
-            # Verificar se está tentando acessar seu próprio perfil
-            if 'id' in kwargs and kwargs['id'] != current_user.id:
-                flash('Você só pode acessar seu próprio perfil.', 'danger')
-                return redirect(url_for('meu_perfil'))
-        
+        if not current_user.is_authenticated or current_user.nivel_acesso not in ['admin', 'supervisor']:
+            flash('Acesso restrito a supervisores e administradores.', 'danger')
+            return redirect(url_for('dashboard'))
         return f(*args, **kwargs)
     return decorated_function
+
 # ============================================================================
 # MODELOS COMPLETOS (mantendo todos os campos)
 # ============================================================================
@@ -360,7 +333,7 @@ class User(UserMixin, db.Model):
     senha_hash = db.Column(db.String(200), nullable=False)
     nome_completo = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
-    nivel_acesso = db.Column(db.String(20), default='unico')
+    nivel_acesso = db.Column(db.String(20), default='colaborador')
     ativo = db.Column(db.Boolean, default=True)
     data_cadastro = db.Column(db.DateTime, default=datetime.utcnow)
     ultimo_login = db.Column(db.DateTime)
@@ -430,6 +403,7 @@ class Colaborador(db.Model):
     # Acadêmico/Profissional
     curriculo_lattes = db.Column(db.String(200))
     orcid = db.Column(db.String(50))
+    linkedin = db.Column(db.String(200))
     observacoes = db.Column(db.Text)
 
     # Status e metadados
@@ -601,15 +575,13 @@ def logout():
     return redirect(url_for('login'))
 
 # ============================================================================
-# ROTA API PARA BUSCAR CEP
+# ROTA API PARA BUSCAR CEP (SIMPLIFICADA)
 # ============================================================================
 @app.route('/api/buscar-cep/<cep>')
 @login_required
 def api_buscar_cep(cep):
-    """API para buscar endereço por CEP usando ViaCEP"""
-    import requests
-    
-    app.logger.info(f'Buscando CEP via API: {cep}')
+    """API simplificada para buscar endereço por CEP (apenas formatação)"""
+    app.logger.info(f'Formatando CEP: {cep}')
     try:
         # Remove caracteres não numéricos
         cep_limpo = re.sub(r'\D', '', cep)
@@ -620,50 +592,18 @@ def api_buscar_cep(cep):
                 'message': 'CEP inválido. Digite 8 dígitos.'
             }), 400
         
-        # Buscar na API ViaCEP
-        url = f'https://viacep.com.br/ws/{cep_limpo}/json/'
-        response = requests.get(url, timeout=5)
+        # Formata o CEP apenas (xxxxx-xxx)
+        cep_formatado = f'{cep_limpo[:5]}-{cep_limpo[5:]}'
         
-        if response.status_code == 200:
-            data = response.json()
-            
-            if 'erro' not in data:
-                # Formatar o CEP
-                cep_formatado = f'{cep_limpo[:5]}-{cep_limpo[5:]}'
-                
-                # Retornar dados completos
-                return jsonify({
-                    'success': True,
-                    'cep': cep_formatado,
-                    'endereco': {
-                        'logradouro': data.get('logradouro', ''),
-                        'bairro': data.get('bairro', ''),
-                        'cidade': data.get('localidade', ''),
-                        'estado': data.get('uf', ''),
-                        'complemento': data.get('complemento', '')
-                    },
-                    'message': 'Endereço encontrado via ViaCEP.'
-                })
-            else:
-                return jsonify({
-                    'success': False,
-                    'message': 'CEP não encontrado na base dos Correios.'
-                })
-                
-        else:
-            return jsonify({
-                'success': False,
-                'message': 'Serviço de CEP temporariamente indisponível.'
-            }), 503
-            
-    except requests.exceptions.Timeout:
-        app.logger.error(f'Timeout ao buscar CEP {cep}')
+        # Retorna apenas o CEP formatado, sem dados de endereço
         return jsonify({
-            'success': False,
-            'message': 'Tempo esgotado ao buscar CEP. Tente novamente.'
-        }), 408
+            'success': True,
+            'cep': cep_formatado,
+            'message': 'CEP formatado. Preencha os dados de endereço manualmente.'
+        })
+        
     except Exception as e:
-        app.logger.error(f'Erro ao buscar CEP {cep}: {e}')
+        app.logger.error(f'Erro ao formatar CEP {cep}: {e}')
         return jsonify({
             'success': False,
             'message': f'Erro ao processar CEP: {str(e)}'
@@ -762,7 +702,7 @@ def listar_colaboradores():
 
 @app.route('/colaborador/novo', methods=['GET', 'POST'])
 @login_required
-@superadmin_required
+@admin_required
 def novo_colaborador():
     """Cadastro de colaborador em 5 passos (ATUALIZADO)"""
 
@@ -877,9 +817,9 @@ def novo_colaborador():
                         }), 400
 
                     # Preparar dados para o banco
-                   dados_db = {
-                    'nome_completo': sanitize_input(dados_finais.get('nome_completo', ''), upper_case=True),
-                    'nome_social': sanitize_input(dados_finais.get('nome_social', ''), upper_case=True),
+                    dados_db = {
+                        'nome_completo': sanitize_input(dados_finais.get('nome_completo', '')).title(),
+                        'nome_social': sanitize_input(dados_finais.get('nome_social', '')).title(),
                         'rg': sanitize_input(dados_finais.get('rg', '')),
                         'cpf': cpf,
                         'email_institucional': sanitize_input(dados_finais.get('email_institucional', '')).lower(),
@@ -1074,7 +1014,7 @@ def ver_colaborador(id):
 
 @app.route('/colaborador/<int:id>/editar', methods=['GET', 'POST'])
 @login_required
-@superadmin_required
+@admin_required
 def editar_colaborador(id):
     colaborador = Colaborador.query.get_or_404(id)
 
@@ -1091,8 +1031,8 @@ def editar_colaborador(id):
                         return render_template('colaborador_edit.html', colaborador=colaborador)
                     colaborador.cpf = novo_cpf
 
-            colaborador.nome_completo = sanitize_input(request.form.get('nome_completo', ''), upper_case=True)
-            colaborador.nome_social = sanitize_input(request.form.get('nome_social', ''), upper_case=True)
+            colaborador.nome_completo = sanitize_input(request.form.get('nome_completo', '')).title()
+            colaborador.nome_social = sanitize_input(request.form.get('nome_social', '')).title()
             colaborador.rg = sanitize_input(request.form.get('rg', ''))
             colaborador.email_institucional = sanitize_input(request.form.get('email_institucional', '')).lower()
             colaborador.celular = formatar_telefone(sanitize_input(request.form.get('celular', '')))
@@ -1131,6 +1071,7 @@ def editar_colaborador(id):
             # Campos acadêmicos
             colaborador.curriculo_lattes = sanitize_input(request.form.get('curriculo_lattes', ''))
             colaborador.orcid = sanitize_input(request.form.get('orcid', ''))
+            colaborador.linkedin = sanitize_input(request.form.get('linkedin', ''))
             colaborador.observacoes = sanitize_input(request.form.get('observacoes', ''))
             colaborador.status = request.form.get('status', 'Ativo')
 
@@ -1166,7 +1107,7 @@ def editar_colaborador(id):
 # ============================================================================
 @app.route('/colaborador/<int:id>/upload-foto', methods=['POST'])
 @login_required
-@superadmin_required
+@admin_required
 def upload_foto_colaborador(id):
     """Upload de foto de perfil para colaborador"""
     colaborador = Colaborador.query.get_or_404(id)
@@ -1221,7 +1162,7 @@ def upload_foto_colaborador(id):
 # ============================================================================
 @app.route('/colaborador/<int:id>/remover-foto', methods=['POST'])
 @login_required
-@superadmin_required
+@admin_required
 def remover_foto_colaborador(id):
     """Remove foto de perfil do colaborador"""
     colaborador = Colaborador.query.get_or_404(id)
@@ -1289,7 +1230,7 @@ def ver_foto_miniatura_colaborador(id):
     
 @app.route('/colaborador/<int:id>/excluir', methods=['POST'])
 @login_required
-@superadmin_required
+@admin_required
 def excluir_colaborador(id):
     colaborador = Colaborador.query.get_or_404(id)
 
@@ -1333,7 +1274,7 @@ def adicionar_observacao(id):
 
 @app.route('/observacao/<int:id>/excluir', methods=['POST'])
 @login_required
-@superadmin_required
+@admin_required
 def excluir_observacao(id):
     obs = Observacao.query.get_or_404(id)
     colab_id = obs.colaborador_id
@@ -1371,7 +1312,7 @@ def exportar_colaboradores_csv():
 
 @app.route('/relatorios', methods=['GET', 'POST'])
 @login_required
-@admin_required 
+@supervisor_required
 def relatorios():
     """Relatórios personalizados"""
 
@@ -1500,7 +1441,7 @@ def relatorios():
 # ============================================================================
 @app.route('/configuracoes')
 @login_required
-@superadmin_required
+@admin_required
 def configuracoes():
     return render_template('configuracoes.html', title='Configurações')
 
@@ -1535,7 +1476,7 @@ def api_info_sistema():
 # ============================================================================
 @app.route('/usuarios')
 @login_required
-@superadmin_required
+@admin_required
 def listar_usuarios():
     try:
         pagina = request.args.get('pagina', 1, type=int)
@@ -1574,7 +1515,7 @@ def listar_usuarios():
 
 @app.route('/usuario/novo', methods=['GET', 'POST'])
 @login_required
-@superadmin_required
+@admin_required
 def novo_usuario():
     if request.method == 'POST':
         try:
@@ -1634,7 +1575,7 @@ def novo_usuario():
 
 @app.route('/usuario/<int:id>/editar', methods=['GET', 'POST'])
 @login_required
-@superadmin_required
+@admin_required
 def editar_usuario(id):
     usuario = User.query.get_or_404(id)
 
@@ -1681,7 +1622,7 @@ def editar_usuario(id):
 
 @app.route('/usuario/<int:id>/excluir', methods=['POST'])
 @login_required
-@superadmin_required
+@admin_required
 def excluir_usuario(id):
     if id == current_user.id:
         flash('Você não pode excluir sua própria conta.', 'danger')
@@ -1713,7 +1654,7 @@ def excluir_usuario(id):
 # ============================================================================
 @app.route('/debug/routes')
 @login_required
-@superadmin_required
+@admin_required
 def debug_routes():
     routes = []
     for rule in app.url_map.iter_rules():
@@ -1814,7 +1755,7 @@ def acesso_negado(e):
 # ============================================================================
 @app.route('/admin/backup')
 @login_required
-@superadmin_required
+@admin_required
 def criar_backup():
     """Cria e disponibiliza backup completo do sistema"""
     try:
@@ -1906,14 +1847,14 @@ def criar_backup():
 
 @app.route('/admin/backup-page')
 @login_required
-@superadmin_required
+@admin_required
 def backup_page():
     """Página de gerenciamento de backups"""
     return render_template('backup.html', title='Backup do Sistema')
 
 @app.route('/admin/backup-db')
 @login_required
-@superadmin_required
+@admin_required
 def backup_database():
     """Faz backup apenas do banco de dados"""
     try:
@@ -1968,11 +1909,10 @@ def health_check():
 # ============================================================================
 @app.route('/setup')
 def setup_database():
-    """Rota para configurar banco de dados manualmente - SEGURA"""
+    """Rota para configurar banco de dados manualmente"""
     try:
         with app.app_context():
-            # IMPORTANTE: NUNCA use db.create_all() aqui!
-            # Isso DESTRÓI dados existentes
+            # NÃO recria tudo do zero - apenas verifica e adiciona o necessário
             
             from sqlalchemy import inspect
             inspector = inspect(db.engine)
@@ -1985,134 +1925,14 @@ def setup_database():
             tabelas_faltantes = [t for t in tabelas_necessarias if t not in existing_tables]
             
             if tabelas_faltantes:
-                # Cria APENAS as tabelas que faltam - NÃO APAGA EXISTENTES
-                from sqlalchemy.schema import CreateTable
-                
-                for tabela in tabelas_faltantes:
-                    if tabela == 'usuarios':
-                        # Cria tabela usuarios
-                        User.__table__.create(db.engine, checkfirst=True)
-                        resultado.append("✅ Criada tabela 'usuarios'")
-                        
-                        # Cria usuário admin
-                        admin = User.query.filter_by(username='admin').first()
-                        if not admin:
-                            admin = User(
-                                username='admin',
-                                nome_completo='Administrador NEV',
-                                email='admin@nev.usp.br',
-                                nivel_acesso='admin',
-                                ativo=True
-                            )
-                            admin.set_password('AdminNEV2024')
-                            db.session.add(admin)
-                            db.session.commit()
-                            resultado.append("✅ Usuário admin criado")
-                    
-                    elif tabela == 'colaboradores':
-                        # Cria tabela colaboradores
-                        Colaborador.__table__.create(db.engine, checkfirst=True)
-                        resultado.append("✅ Criada tabela 'colaboradores'")
-                    
-                    elif tabela == 'logs_sistema':
-                        # Cria tabela logs
-                        Log.__table__.create(db.engine, checkfirst=True)
-                        resultado.append("✅ Criada tabela 'logs_sistema'")
-                    
-                    elif tabela == 'observacoes_colaborador':
-                        # Cria tabela observacoes
-                        Observacao.__table__.create(db.engine, checkfirst=True)
-                        resultado.append("✅ Criada tabela 'observacoes_colaborador'")
+                db.create_all()
+                resultado.append(f"✅ Criadas tabelas faltantes: {', '.join(tabelas_faltantes)}")
             else:
                 resultado.append("✅ Todas as tabelas já existem")
-                resultado.append("✅ DADOS PRESERVADOS!")
             
-            # Verificar e adicionar campos faltantes de forma segura
-            try:
-                if 'colaboradores' in existing_tables:
-                    colaboradores_columns = [col['name'] for col in inspector.get_columns('colaboradores')]
-                    
-                    if 'complemento' not in colaboradores_columns:
-                        db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN IF NOT EXISTS complemento VARCHAR(100)"))
-                        resultado.append("✅ Adicionado campo 'complemento'")
-                    
-                    if 'foto_perfil' not in colaboradores_columns:
-                        db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN IF NOT EXISTS foto_perfil VARCHAR(255)"))
-                        resultado.append("✅ Adicionado campo 'foto_perfil'")
-                    
-                    if 'foto_perfil_miniatura' not in colaboradores_columns:
-                        db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN IF NOT EXISTS foto_perfil_miniatura VARCHAR(255)"))
-                        resultado.append("✅ Adicionado campo 'foto_perfil_miniatura'")
-                    
-                    if 'foto_data_upload' not in colaboradores_columns:
-                        db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN IF NOT EXISTS foto_data_upload TIMESTAMP"))
-                        resultado.append("✅ Adicionado campo 'foto_data_upload'")
-                    
-            except Exception as e:
-                resultado.append(f"⚠️  Nota: {str(e)[:100]}...")
-            
-            db.session.commit()
-            
-            return f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Configuração SEGURA - Sistema NEV</title>
-                <style>
-                    body {{ font-family: Arial, sans-serif; margin: 40px; }}
-                    .success {{ color: green; font-weight: bold; }}
-                    .warning {{ color: orange; }}
-                    .danger {{ color: red; }}
-                </style>
-            </head>
-            <body>
-                <h1>✅ Configuração SEGURA Concluída!</h1>
-                <p class="success"><strong>✅ DADOS PRESERVADOS!</strong> Nenhuma tabela foi apagada.</p>
-                <p><strong>Resultados:</strong></p>
-                <ul>
-                    {' '.join([f'<li>{r}</li>' for r in resultado])}
-                </ul>
-                <p><strong>Login:</strong> admin</p>
-                <p><strong>Senha:</strong> AdminNEV2024</p>
-                <p><a href="/login" style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir para login</a></p>
-                <p class="warning"><small>Nota: Esta versão NÃO apaga dados existentes.</small></p>
-            </body>
-            </html>
-            """
-    except Exception as e:
-        return f"""
-        <h1>❌ Erro na configuração</h1>
-        <p>Erro: {str(e)}</p>
-        <p><strong>IMPORTANTE:</strong> Seus dados NÃO foram afetados por este erro.</p>
-        <a href="/">Voltar</a>
-        """
-    except Exception as e:
-        return f"""
-        <h1>❌ Erro na configuração</h1>
-        <p>Erro: {str(e)}</p>
-        <a href="/">Voltar</a>
-        """
-
-@app.route('/init-db')
-def init_database():
-    """Rota para inicializar banco de dados manualmente - SEGURA"""
-    try:
-        with app.app_context():
-            # NÃO use db.create_all() - isso apaga dados!
-            # Em vez disso, verifique e crie apenas o necessário
-            
-            from sqlalchemy import inspect
-            inspector = inspect(db.engine)
-            existing_tables = inspector.get_table_names()
-            
-            tabelas_criadas = []
-            
-            # Criar tabelas apenas se não existirem
-            if 'usuarios' not in existing_tables:
-                User.__table__.create(db.engine, checkfirst=True)
-                tabelas_criadas.append('usuarios')
-                
-                # Criar admin
+            # Verificar se admin existe
+            admin = User.query.filter_by(username='admin').first()
+            if not admin:
                 admin = User(
                     username='admin',
                     nome_completo='Administrador NEV',
@@ -2122,39 +1942,83 @@ def init_database():
                 )
                 admin.set_password('AdminNEV2024')
                 db.session.add(admin)
+                db.session.commit()
+                resultado.append("✅ Usuário admin criado")
+            else:
+                resultado.append("✅ Usuário admin já existe")
             
-            if 'colaboradores' not in existing_tables:
-                Colaborador.__table__.create(db.engine, checkfirst=True)
-                tabelas_criadas.append('colaboradores')
-            
-            if 'logs_sistema' not in existing_tables:
-                Log.__table__.create(db.engine, checkfirst=True)
-                tabelas_criadas.append('logs_sistema')
-            
-            if 'observacoes_colaborador' not in existing_tables:
-                Observacao.__table__.create(db.engine, checkfirst=True)
-                tabelas_criadas.append('observacoes_colaborador')
+            # Adicionar campos faltantes de forma segura
+            try:
+                colaboradores_columns = [col['name'] for col in inspector.get_columns('colaboradores')]
+                
+                if 'complemento' not in colaboradores_columns:
+                    db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN complemento VARCHAR(100)"))
+                    resultado.append("✅ Adicionado campo 'complemento'")
+                
+                if 'foto_perfil' not in colaboradores_columns:
+                    db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN foto_perfil VARCHAR(255)"))
+                    resultado.append("✅ Adicionado campo 'foto_perfil'")
+                
+                if 'foto_perfil_miniatura' not in colaboradores_columns:
+                    db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN foto_perfil_miniatura VARCHAR(255)"))
+                    resultado.append("✅ Adicionado campo 'foto_perfil_miniatura'")
+                
+                if 'foto_data_upload' not in colaboradores_columns:
+                    db.session.execute(db.text("ALTER TABLE colaboradores ADD COLUMN foto_data_upload TIMESTAMP"))
+                    resultado.append("✅ Adicionado campo 'foto_data_upload'")
+                
+            except Exception as e:
+                resultado.append(f"⚠️ Erro ao adicionar campos: {e}")
             
             db.session.commit()
             
-            if tabelas_criadas:
-                return jsonify({
-                    'success': True,
-                    'message': f'✅ Tabelas criadas: {", ".join(tabelas_criadas)}',
-                    'warning': 'DADOS EXISTENTES PRESERVADOS!'
-                })
-            else:
-                return jsonify({
-                    'success': True,
-                    'message': '✅ Banco já inicializado',
-                    'warning': 'Nenhuma tabela foi apagada'
-                })
+            return f"""
+            <h1>✅ Configuração Segura Concluída!</h1>
+            <p><strong>DADOS PRESERVADOS!</strong></p>
+            <p>Resultados:</p>
+            <ul>
+                <li>{'<br>'.join(resultado)}</li>
+            </ul>
+            <p>Login: <strong>admin</strong></p>
+            <p>Senha: <strong>AdminNEV2024</strong></p>
+            <a href="/login">Ir para login</a>
+            """
+    except Exception as e:
+        return f"""
+        <h1>❌ Erro na configuração</h1>
+        <p>Erro: {str(e)}</p>
+        <a href="/">Voltar</a>
+        """
+
+@app.route('/init-db')
+def init_database():
+    """Rota para inicializar banco de dados manualmente"""
+    try:
+        with app.app_context():
+            db.create_all()
             
+            # Criar admin se não existir
+            admin = User.query.filter_by(username='admin').first()
+            if not admin:
+                admin = User(
+                    username='admin',
+                    nome_completo='Administrador NEV',
+                    email='admin@nev.usp.br',
+                    nivel_acesso='admin',
+                    ativo=True
+                )
+                admin.set_password('AdminNEV2024')
+                db.session.add(admin)
+                db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': 'Banco inicializado com sucesso!'
+            })
     except Exception as e:
         return jsonify({
             'success': False,
-            'error': str(e),
-            'note': 'Seus dados NÃO foram apagados por este erro'
+            'error': str(e)
         }), 500
 
 @app.route('/test-db')
@@ -2303,7 +2167,7 @@ def init_db():
 # ============================================================================
 @app.route('/admin/migrate-safe')
 @login_required
-@superadmin_required
+@admin_required
 def migrate_safe():
     """Migração segura - não apaga dados existentes"""
     try:

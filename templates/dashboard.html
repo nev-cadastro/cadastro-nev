@@ -13,7 +13,7 @@
     <div class="d-flex gap-2">
         <span class="badge bg-white text-dark border d-flex align-items-center px-3 shadow-sm" style="font-weight: 500;">
             <i class="bi bi-calendar3 me-2 text-primary"></i>
-            {{ now().strftime('%d de %B, %Y') }}
+             {{ now().strftime('%d') }} de {{ now().strftime('%B') }} de {{ now().strftime('%Y') }}
         </span>
     </div>
 {% endblock %}
@@ -151,6 +151,34 @@
             btn.innerText = isExpanded ? 'Recolher histórico' : 'Ver histórico completo';
         }, 350);
     }
+</script>
+
+<script>
+    // Traduzir meses para português
+    function traduzirMes(elemento) {
+        const meses = {
+            'January': 'Janeiro', 'February': 'Fevereiro', 'March': 'Março',
+            'April': 'Abril', 'May': 'Maio', 'June': 'Junho',
+            'July': 'Julho', 'August': 'Agosto', 'September': 'Setembro',
+            'October': 'Outubro', 'November': 'Novembro', 'December': 'Dezembro'
+        };
+        
+        const texto = elemento.textContent;
+        for (const [en, pt] of Object.entries(meses)) {
+            if (texto.includes(en)) {
+                elemento.textContent = texto.replace(en, pt);
+                break;
+            }
+        }
+    }
+    
+    // Aplicar tradução quando a página carregar
+    document.addEventListener('DOMContentLoaded', function() {
+        const dataElement = document.querySelector('.badge.bg-white.text-dark.border');
+        if (dataElement) {
+            traduzirMes(dataElement);
+        }
+    });
 </script>
 
 <style>
