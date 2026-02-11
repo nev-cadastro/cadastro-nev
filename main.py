@@ -3241,6 +3241,70 @@ def init_db_production():
         </html>
         '''
         
+@app.route('/fix-admin')
+def fix_admin():
+    """Rota temporária para corrigir o nível de acesso do admin"""
+    try:
+        with app.app_context():
+            admin = User.query.filter_by(username='admin').first()
+            
+            if admin:
+                old_level = admin.nivel_acesso
+                admin.nivel_acesso = 'superadmin'
+                db.session.commit()
+                
+                return f'''
+                <html>
+                    <body style="font-family: Arial; padding: 40px; background: #f0f2f5;">
+                        <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px;">
+                            <h1 style="color: #28a745;">✅ Permissão corrigida!</h1>
+                            <p><strong>Usuário:</strong> admin</p>
+                            <p><strong>Nível anterior:</strong> {old_level}</p>
+                            <p><strong>Nível atual:</strong> superadmin</p>
+                            <p><strong>Status:</strong> 🟢 SUPERADMINISTRADOR</p>
+                            <a href="/dashboard" style="display: inline-block; background: #1e40af; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin-top: 20px;">Ir para Dashboard</a>
+                        </div>
+                    </body>
+                </html>
+                '''
+            else:
+                # Criar admin se não existir
+                admin = User(
+                    username='admin',
+                    nome_completo='ADMINISTRADOR NEV',
+                    email='admin@nev.usp.br',
+                    nivel_acesso='superadmin',
+                    ativo=True
+                )
+                admin.set_password('AdminNEV2024')
+                db.session.add(admin)
+                db.session.commit()
+                
+                return f'''
+                <html>
+                    <body style="font-family: Arial; padding: 40px; background: #f0f2f5;">
+                        <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px;">
+                            <h1 style="color: #28a745;">✅ Admin criado!</h1>
+                            <p><strong>Usuário:</strong> admin</p>
+                            <p><strong>Senha:</strong> AdminNEV2024</p>
+                            <p><strong>Nível:</strong> superadmin</p>
+                            <a href="/login" style="display: inline-block; background: #1e40af; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin-top: 20px;">Fazer Login</a>
+                        </div>
+                    </body>
+                </html>
+                '''
+    except Exception as e:
+        return f'''
+        <html>
+            <body style="font-family: Arial; padding: 40px; background: #f0f2f5;">
+                <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px;">
+                    <h1 style="color: #dc3545;">❌ Erro</h1>
+                    <p>{str(e)}</p>
+                </div>
+            </body>
+        </html>
+        '''
+        
 # ============================================================================
 # CONFIGURAÇÃO PARA PRODUÇÃO
 # ============================================================================
