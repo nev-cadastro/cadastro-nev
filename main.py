@@ -795,7 +795,7 @@ def listar_colaboradores():
 
 @app.route('/colaborador/novo', methods=['GET', 'POST'])
 @login_required
-@superadmin_required
+@admin_required
 def novo_colaborador():
     """Cadastro de colaborador em 5 passos (ATUALIZADO)"""
 
@@ -823,7 +823,7 @@ def novo_colaborador():
                     dados['cep'] = request.form.get('cep', '')
                     dados['endereco'] = request.form.get('endereco', '')
                     dados['numero'] = request.form.get('numero', '')
-                    dados['complemento'] = request.form.get('complemento', '')  # NOVO CAMPO
+                    dados['complemento'] = request.form.get('complemento', '')
                     dados['bairro'] = request.form.get('bairro', '')
                     dados['cidade'] = request.form.get('cidade', '')
                     dados['estado'] = request.form.get('estado', '')
@@ -831,7 +831,6 @@ def novo_colaborador():
                 elif passo == 3:
                     dados['tipo_vinculo'] = request.form.get('tipo_vinculo', '')
                     dados['departamento'] = request.form.get('departamento', '')
-                    # dados['lotacao'] = request.form.get('lotacao', '')  # REMOVIDO
                     dados['data_ingresso'] = request.form.get('data_ingresso', '')
                     dados['dias_presenciais'] = ','.join(request.form.getlist('dias_presenciais'))
 
@@ -839,12 +838,10 @@ def novo_colaborador():
                     dados['atende_imprensa'] = 'atende_imprensa' in request.form
                     dados['tipos_imprensa'] = ', '.join(request.form.getlist('tipos_imprensa'))
                     dados['assuntos_especializacao'] = request.form.get('assuntos_especializacao', '')
-                    # dados['disponibilidade_contato'] = request.form.get('disponibilidade_contato', '')  # REMOVIDO
 
                 elif passo == 5:
                     dados['curriculo_lattes'] = request.form.get('curriculo_lattes', '')
                     dados['orcid'] = request.form.get('orcid', '')
-                    dados['linkedin'] = request.form.get('linkedin', '')
                     dados['observacoes'] = request.form.get('observacoes', '')
 
                 # Salvar na sessão
@@ -855,7 +852,7 @@ def novo_colaborador():
                     'message': f'Dados do passo {passo} salvos temporariamente'
                 })
 
-                        elif acao == 'finalizar_cadastro':
+            elif acao == 'finalizar_cadastro':
                 # Coletar todos os dados dos 5 passos
                 dados_finais = {}
 
@@ -910,25 +907,25 @@ def novo_colaborador():
                         }), 400
 
                     # Preparar dados para o banco
-                dados_db = {
-                    'nome_completo': sanitize_input(dados_finais.get('nome_completo', ''), upper_case=True),
-                    'nome_social': sanitize_input(dados_finais.get('nome_social', ''), upper_case=True),
-                    'rg': sanitize_input(dados_finais.get('rg', '')),
-                    'cpf': cpf,
-                    'email_institucional': sanitize_input(dados_finais.get('email_institucional', '')).lower(),
-                    'celular': formatar_telefone(sanitize_input(dados_finais.get('celular', ''))),
-                    'whatsapp': dados_finais.get('whatsapp', False),
-                    'tipo_vinculo': dados_finais.get('tipo_vinculo', ''),
-                    'departamento': sanitize_input(dados_finais.get('departamento', '')),
-                    'atende_imprensa': dados_finais.get('atende_imprensa', False),
-                    'tipos_imprensa': dados_finais.get('tipos_imprensa', ''),
-                    'assuntos_especializacao': sanitize_input(dados_finais.get('assuntos_especializacao', '')),
-                    'curriculo_lattes': sanitize_input(dados_finais.get('curriculo_lattes', '')),
-                    'orcid': sanitize_input(dados_finais.get('orcid', '')),
-                    'observacoes': sanitize_input(dados_finais.get('observacoes', '')),
-                    'status': 'Ativo',
-                    'cadastrado_por': current_user.id
-                }
+                    dados_db = {
+                        'nome_completo': sanitize_input(dados_finais.get('nome_completo', ''), upper_case=True),
+                        'nome_social': sanitize_input(dados_finais.get('nome_social', ''), upper_case=True),
+                        'rg': sanitize_input(dados_finais.get('rg', '')),
+                        'cpf': cpf,
+                        'email_institucional': sanitize_input(dados_finais.get('email_institucional', '')).lower(),
+                        'celular': formatar_telefone(sanitize_input(dados_finais.get('celular', ''))),
+                        'whatsapp': dados_finais.get('whatsapp', False),
+                        'tipo_vinculo': dados_finais.get('tipo_vinculo', ''),
+                        'departamento': sanitize_input(dados_finais.get('departamento', '')),
+                        'atende_imprensa': dados_finais.get('atende_imprensa', False),
+                        'tipos_imprensa': dados_finais.get('tipos_imprensa', ''),
+                        'assuntos_especializacao': sanitize_input(dados_finais.get('assuntos_especializacao', '')),
+                        'curriculo_lattes': sanitize_input(dados_finais.get('curriculo_lattes', '')),
+                        'orcid': sanitize_input(dados_finais.get('orcid', '')),
+                        'observacoes': sanitize_input(dados_finais.get('observacoes', '')),
+                        'status': 'Ativo',
+                        'cadastrado_por': current_user.id
+                    }
 
                     # Processar datas
                     try:
@@ -1010,8 +1007,8 @@ def novo_colaborador():
                 return render_template('colaborador_form.html', dados=request.form)
 
             dados = {
-                'nome_completo': sanitize_input(request.form.get('nome_completo', '')).title(),
-                'nome_social': sanitize_input(request.form.get('nome_social', '')).title(),
+                'nome_completo': sanitize_input(request.form.get('nome_completo', ''), upper_case=True),
+                'nome_social': sanitize_input(request.form.get('nome_social', ''), upper_case=True),
                 'rg': sanitize_input(request.form.get('rg', '')),
                 'cpf': cpf,
                 'email_institucional': sanitize_input(request.form.get('email_institucional', '')).lower(),
@@ -1019,14 +1016,11 @@ def novo_colaborador():
                 'whatsapp': 'whatsapp' in request.form,
                 'tipo_vinculo': vinculo,
                 'departamento': sanitize_input(request.form.get('departamento', '')),
-                # 'lotacao': sanitize_input(request.form.get('lotacao', '')),  # REMOVIDO
                 'atende_imprensa': 'atende_imprensa' in request.form,
                 'tipos_imprensa': ', '.join(request.form.getlist('tipos_imprensa')),
                 'assuntos_especializacao': sanitize_input(request.form.get('assuntos_especializacao', '')),
-                # 'disponibilidade_contato': sanitize_input(request.form.get('disponibilidade_contato', '')),  # REMOVIDO
                 'curriculo_lattes': sanitize_input(request.form.get('curriculo_lattes', '')),
                 'orcid': sanitize_input(request.form.get('orcid', '')),
-                'linkedin': sanitize_input(request.form.get('linkedin', '')),
                 'observacoes': sanitize_input(request.form.get('observacoes', '')),
                 'status': 'Ativo',
                 'cadastrado_por': current_user.id
@@ -1061,7 +1055,7 @@ def novo_colaborador():
                 'cep': sanitize_input(request.form.get('cep', '')),
                 'endereco': sanitize_input(request.form.get('endereco', '')),
                 'numero': sanitize_input(request.form.get('numero', '')),
-                'complemento': sanitize_input(request.form.get('complemento', '')),  # NOVO CAMPO
+                'complemento': sanitize_input(request.form.get('complemento', '')),
                 'bairro': sanitize_input(request.form.get('bairro', '')),
                 'cidade': sanitize_input(request.form.get('cidade', '')),
                 'estado': sanitize_input(request.form.get('estado', '')),
