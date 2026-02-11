@@ -855,7 +855,7 @@ def novo_colaborador():
                     'message': f'Dados do passo {passo} salvos temporariamente'
                 })
 
-            elif acao == 'finalizar_cadastro':
+                        elif acao == 'finalizar_cadastro':
                 # Coletar todos os dados dos 5 passos
                 dados_finais = {}
 
@@ -910,9 +910,9 @@ def novo_colaborador():
                         }), 400
 
                     # Preparar dados para o banco
-                   dados_db = {
-                    'nome_completo': sanitize_input(dados_finais.get('nome_completo', ''), upper_case=True),
-                    'nome_social': sanitize_input(dados_finais.get('nome_social', ''), upper_case=True),
+                    dados_db = {
+                        'nome_completo': sanitize_input(dados_finais.get('nome_completo', ''), upper_case=True),
+                        'nome_social': sanitize_input(dados_finais.get('nome_social', ''), upper_case=True),
                         'rg': sanitize_input(dados_finais.get('rg', '')),
                         'cpf': cpf,
                         'email_institucional': sanitize_input(dados_finais.get('email_institucional', '')).lower(),
@@ -920,14 +920,11 @@ def novo_colaborador():
                         'whatsapp': dados_finais.get('whatsapp', False),
                         'tipo_vinculo': dados_finais.get('tipo_vinculo', ''),
                         'departamento': sanitize_input(dados_finais.get('departamento', '')),
-                        # 'lotacao': sanitize_input(dados_finais.get('lotacao', '')),  # REMOVIDO
                         'atende_imprensa': dados_finais.get('atende_imprensa', False),
                         'tipos_imprensa': dados_finais.get('tipos_imprensa', ''),
                         'assuntos_especializacao': sanitize_input(dados_finais.get('assuntos_especializacao', '')),
-                        # 'disponibilidade_contato': sanitize_input(dados_finais.get('disponibilidade_contato', '')),  # REMOVIDO
                         'curriculo_lattes': sanitize_input(dados_finais.get('curriculo_lattes', '')),
                         'orcid': sanitize_input(dados_finais.get('orcid', '')),
-                        'linkedin': sanitize_input(dados_finais.get('linkedin', '')),
                         'observacoes': sanitize_input(dados_finais.get('observacoes', '')),
                         'status': 'Ativo',
                         'cadastrado_por': current_user.id
@@ -949,7 +946,7 @@ def novo_colaborador():
                         if data_nascimento:
                             dados_db['data_nascimento'] = datetime.strptime(data_nascimento, '%Y-%m-%d').date()
                     except ValueError:
-                        pass  # Data de nascimento é opcional
+                        pass
 
                     # Dias presenciais
                     dias_presenciais = dados_finais.get('dias_presenciais', '')
@@ -961,7 +958,7 @@ def novo_colaborador():
                         'cep': sanitize_input(dados_finais.get('cep', '')),
                         'endereco': sanitize_input(dados_finais.get('endereco', '')),
                         'numero': sanitize_input(dados_finais.get('numero', '')),
-                        'complemento': sanitize_input(dados_finais.get('complemento', '')),  # NOVO CAMPO
+                        'complemento': sanitize_input(dados_finais.get('complemento', '')),
                         'bairro': sanitize_input(dados_finais.get('bairro', '')),
                         'cidade': sanitize_input(dados_finais.get('cidade', '')),
                         'estado': sanitize_input(dados_finais.get('estado', '')),
